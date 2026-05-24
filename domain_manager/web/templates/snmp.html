@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Síťová zařízení (SNMP) — Dominator{% endblock %}
+{% block content %}
+<div style="display: flex; align-items: baseline; gap: 16px; margin-bottom: 8px;">
+    <h1 style="margin: 0;">Síťová zařízení</h1>
+    <a href="/snmp/new" class="btn" style="font-size: 13px; padding: 6px 14px;">+ Přidat zařízení</a>
+</div>
+<p style="color: var(--text-dim); margin-top: 0; font-size: 13px;">
+    Switche, routery a AP monitorované přes SNMP. Vyžaduje <code>pip install pysnmp</code>.
+</p>
+
+{% if not devices %}
+<div class="card" style="text-align: center; padding: 40px; color: var(--text-dim);">
+    Žádná síťová zařízení. Přidejte switch nebo router kliknutím výše.
+</div>
+{% else %}
+<div class="card" style="padding: 0; overflow: hidden;">
+<table style="font-size: 13px;">
+    <thead>
+        <tr>
+            <th>Hostname / IP</th>
+            <th>Typ</th>
+            <th>Model</th>
+            <th>Lokace</th>
+            <th style="text-align: center;">Porty</th>
+            <th style="text-align: center;">MAC</th>
+            <th>Poslední sync</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for d in devices %}
+    <tr>
+        <td>
+            <a href="/snmp/{{ d.id }}" style="color: var(--accent); text-decoration: none; font-weight: 500;">
+                {{ d.hostname }}
+            </a>
+            {% if d.ip %}<br><span style="font-size: 11px; color: var(--text-dim); font-family: monospace;">{{ d.ip }}</span>{% endif %}
+        </td>
+        <td>
+            <span class="badge {% if d.sync_error %}failed{% else %}running{% endif %}" style="font-size: 11px;">
+                {{ d.type_label }}
+            </span>
+        </td>
+        <td style="color: var(--text-dim); font-size: 12px;">
+            {% if d.manufacturer %}{{ d.manufacturer }}{% endif %}
+            {% if d.model %} {{ d.model }}{% endif %}
+            {% if not d.manufacturer and not d.model %}—{% endif %}
+        </td>
+        <td style="color: var(--text-dim); font-size: 12px;">{{ d.location or "—" }}</td>
+        <td style="text-align: center; font-variant-numeric: tabular-nums;">
+            {{ d.port_count if d.port_count else "—" }}
+        </td>
+        <td style="text-align: center; font-variant-numeric: tabular-nums;">
+            {{ d.mac_count if d.mac_count else "—" }}
+        </td>
+        <td style="font-size: 12px; color: var(--text-dim);">
+            {% if d.last_sync %}{{ d.last_sync }}{% else %}Nikdy{% endif %}
+            {% if d.sync_error %}<br><span style="color: var(--danger);" title="{{ d.sync_error }}">⚠ Chyba</span>{% endif %}
+        </td>
+        <td>
+            <span
+                id="sync-result-{{ d.id }}"
+                hx-post="/snmp/{{ d.id }}/sync"
+                hx-target="#sync-result-{{ d.id }}"
+                hx-swap="outerHTML"
+                hx-trigger="click"
+                style="cursor: pointer; color: var(--text-dim); font-size: 12px; padding: 3px 8px; background: var(--border); border-radius: 4px;">
+                ↻ Sync
+            </span>
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endif %}
+{% endblock %}

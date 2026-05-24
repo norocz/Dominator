@@ -1,0 +1,64 @@
+---
+# Záloha Pi-hole konfigurace přes Teleporter API.
+# Stáhne .zip archiv s adlisty, skupinami, klienty a nastavením.
+- name: Záloha Pi-hole
+  hosts: localhost
+  connection: local
+  vars:
+    backup_dir: /var/lib/domain-manager/backups
+    pihole_host: "{{ groups['dc1'] | first }}"
+    pihole_port: 8081
+    pihole_password: "{{ lookup('env', 'DM_PIHOLE_PASS') }}"
+    timestamp: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
+
+  tasks:
+    - name: Vytvořit adresář pro zálohy Pi-hole
+      file:
+        path: "{{ backup_dir }}/pihole"
+        state: directory
+        mode: "0750"
+
+    - name: Přihlášení do Pi-hole API
+      uri:
+        url: "http://{{ pihole_host }}:{{ pihole_port }}/api/auth"
+        method: POST
+        body_format: json
+        body:
+          password: "{{ pihole_password }}"
+        return_content: true
+      register: auth_response
+
+    - name: Stáhnout Teleporter zálohu
+      uri:
+        url: "http://{{ pihole_host }}:{{ pihole_port }}/api/teleporter"
+        method: GET
+        headers:
+          X-FTL-SID: "{{ auth_response.json.session.sid }}"
+        dest: "{{ backup_dir }}/pihole/pihole_{{ timestamp }}.zip"
+        return_content: false
+      register: teleporter_result
+
+    - name: Odhlásit se z Pi-hole API
+      uri:
+        url: "http://{{ pihole_host }}:{{ pihole_port }}/api/auth"
+        method: DELETE
+        headers:
+          X-FTL-SID: "{{ auth_response.json.session.sid }}"
+      ignore_errors: true
+
+    - name: Výsledek zálohy Pi-hole
+      debug:
+        msg: "Pi-hole záloha uložena: {{ backup_dir }}/pihole/pihole_{{ timestamp }}.zip"
+
+    - name: Smazat staré zálohy Pi-hole (> 30 dní)
+      find:
+        paths: "{{ backup_dir }}/pihole"
+        patterns: "*.zip"
+        age: "30d"
+      register: old_ph_backups
+
+    - name: Odstranit staré zálohy
+      file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ old_ph_backups.files }}"

@@ -1,0 +1,480 @@
+{% extends "base.html" %}
+{% block title %}Nápověda — Dominator{% endblock %}
+{% block head_extra %}
+<style>
+.help-layout {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 28px;
+    align-items: start;
+}
+.help-toc {
+    position: sticky;
+    top: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    font-size: 13px;
+}
+.help-toc .toc-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    letter-spacing: 0.05em;
+}
+.help-toc a {
+    display: block;
+    padding: 4px 8px;
+    color: var(--text-dim);
+    text-decoration: none;
+    border-radius: 4px;
+    line-height: 1.4;
+}
+.help-toc a:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+.help-toc a.active { color: var(--accent); background: rgba(74,158,255,0.08); }
+.help-toc .toc-sub { padding-left: 16px; font-size: 12px; }
+
+.help-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px 28px;
+    margin-bottom: 20px;
+    scroll-margin-top: 24px;
+}
+.help-section h2 {
+    font-size: 17px;
+    margin-top: 0;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.help-section h3 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 18px 0 6px;
+}
+.help-section p { color: var(--text-dim); margin: 0 0 10px; line-height: 1.6; }
+.help-section ul, .help-section ol {
+    color: var(--text-dim);
+    margin: 0 0 12px;
+    padding-left: 20px;
+    line-height: 1.7;
+}
+.help-section li strong { color: var(--text); }
+.help-section code {
+    background: rgba(255,255,255,0.07);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--accent);
+    font-family: 'Consolas', 'SF Mono', monospace;
+}
+.help-section pre {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-size: 12px;
+    line-height: 1.6;
+    overflow-x: auto;
+    color: var(--text);
+    font-family: 'Consolas', 'SF Mono', monospace;
+    margin: 8px 0 12px;
+}
+.tip {
+    background: rgba(74,158,255,0.08);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 6px 6px 0;
+    padding: 10px 14px;
+    margin: 12px 0;
+    font-size: 13px;
+    color: var(--text-dim);
+}
+.warn {
+    background: rgba(245,158,11,0.08);
+    border-left: 3px solid var(--warning);
+    border-radius: 0 6px 6px 0;
+    padding: 10px 14px;
+    margin: 12px 0;
+    font-size: 13px;
+    color: var(--text-dim);
+}
+.key {
+    display: inline-block;
+    background: var(--border);
+    border-radius: 4px;
+    padding: 1px 7px;
+    font-size: 11px;
+    font-family: monospace;
+    color: var(--text);
+}
+</style>
+{% endblock %}
+{% block content %}
+<h1 style="margin-bottom: 4px;">Nápověda</h1>
+<p style="color: var(--text-dim); margin-top: 0; font-size: 13px;">Průvodce systémem Domain Manager — Dominator</p>
+
+<div class="help-layout">
+
+<!-- TOC -->
+<div class="help-toc" id="toc">
+    <div class="toc-title">Obsah</div>
+    <a href="#o-systemu">O systému</a>
+    <a href="#prehled">Přehled</a>
+    <a href="#pocitace">Počítače</a>
+    <a href="#uzivatele">Uživatelé</a>
+    <a href="#skupiny">Skupiny</a>
+    <a href="#dhcp">DHCP</a>
+    <a href="#pihole">Pi-hole</a>
+    <a href="#ansible">Ansible</a>
+    <a href="#politiky">Politiky GPO</a>
+    <a href="#planky">Plánky sítě</a>
+    <a href="#sit">Monitorování sítě</a>
+    <a href="#certy">Certifikáty</a>
+    <a href="#zalohy">Zálohy</a>
+    <a href="#zdravi">Zdraví systému</a>
+    <a href="#audit">Audit log</a>
+    <a href="#cli">CLI příkazy</a>
+</div>
+
+<!-- Obsah -->
+<div>
+
+<!-- O systému -->
+<section class="help-section" id="o-systemu">
+    <h2>🏠 O systému</h2>
+    <p>
+        <strong>Domain Manager (Dominator)</strong> je webová administrační konzola pro správu školní IT infrastruktury
+        postavené na Samba Active Directory. Umožňuje spravovat počítače, uživatele, skupiny, DHCP, DNS filtrování,
+        síťové topologie a automatizaci — vše z jednoho místa bez nutnosti přímého přístupu na server.
+    </p>
+    <h3>Technologie</h3>
+    <ul>
+        <li><strong>Backend:</strong> Python / FastAPI, SQLAlchemy, SQLite / PostgreSQL</li>
+        <li><strong>Frontend:</strong> Jinja2 šablony, HTMX (bez Node.js, bez npm)</li>
+        <li><strong>AD backend:</strong> Samba 4 (ldap3 klient)</li>
+        <li><strong>Všechny JS/CSS závislosti jsou lokální</strong> — systém funguje i bez přístupu k internetu</li>
+    </ul>
+    <h3>Demo režim</h3>
+    <p>
+        Pokud se zobrazuje žlutý banner <strong>DEMO REŽIM</strong>, všechny write operace jsou blokovány a
+        pracujete s ukázkovými daty. Demo je určeno pro testování UI bez reálného AD serveru.
+        Spustíte jej pomocí <code>DM_DEMO=1 dm web start</code>.
+    </p>
+</section>
+
+<!-- Přehled -->
+<section class="help-section" id="prehled">
+    <h2>📊 Přehled</h2>
+    <p>
+        Úvodní stránka po přihlášení. Zobrazuje aktuální stav infrastruktury na jednom místě:
+    </p>
+    <ul>
+        <li><strong>Statistiky AD</strong> — počet počítačů, uživatelů, skupin</li>
+        <li><strong>Zdraví serverů</strong> — ping, dostupnost portů (DC1, DC2, Pi-hole…)</li>
+        <li><strong>Nedávné události</strong> — posledních N záznamů z audit logu</li>
+        <li><strong>Aktivní DHCP pronájmy</strong> — přehled přiřazených IP adres</li>
+    </ul>
+    <div class="tip">Přehled se automaticky neobnovuje. Stiskněte <span class="key">F5</span> pro načtení aktuálních dat.</div>
+</section>
+
+<!-- Počítače -->
+<section class="help-section" id="pocitace">
+    <h2>🖥 Počítače</h2>
+    <p>Seznam všech počítačových účtů v Active Directory. Umožňuje základní operace s objekty AD.</p>
+    <h3>Co lze dělat</h3>
+    <ul>
+        <li><strong>Přidat počítač</strong> — vytvoří objekt v AD (neinstaluje OS)</li>
+        <li><strong>Přesunout do OU</strong> — změna organizační jednotky v AD</li>
+        <li><strong>Zakázat/Povolit účet</strong> — blokuje přihlášení počítače do domény</li>
+        <li><strong>Smazat</strong> — odstraní objekt z AD</li>
+        <li><strong>Blokovat internet</strong> — přeřadí klienta do Pi-hole skupiny <code>dm-blokováno</code></li>
+    </ul>
+    <h3>Ikony stavů</h3>
+    <ul>
+        <li>🟢 Online — počítač odpovídá na ping</li>
+        <li>🔴 Offline — nedostupný</li>
+        <li>⚫ Neznámo — ping nebyl proveden</li>
+    </ul>
+    <h3>Import z CSV</h3>
+    <p>Tlačítko <strong>↑ Import CSV</strong> v záhlaví stránky umožňuje hromadné vytvoření nebo aktualizaci počítačů.</p>
+    <p>Povinný sloupec: <code>hostname</code>. Záhlaví lze psát česky i anglicky. Existující záznam (stejný hostname) se aktualizuje, nový se vytvoří.</p>
+    <pre>hostname,mac,ip,department,location,building,floor,room,asset_tag,serial_number,manufacturer,model,os_family,primary_user,warranty_until,purchase_date
+pc-ucebna-01,aa:bb:cc:dd:ee:01,192.168.10.101,Učebny,Přízemí,A,0,U01,INV-001,SN12345,Dell,OptiPlex 7090,windows,novak,2027-06-30,2024-01-15
+pc-ucebna-02,aa:bb:cc:dd:ee:02,192.168.10.102,Učebny,Přízemí,A,0,U01,,,,,,windows,,</pre>
+    <ul>
+        <li>Datum ve formátu <code>YYYY-MM-DD</code>, <code>DD.MM.YYYY</code> nebo <code>DD/MM/YYYY</code></li>
+        <li>Zaškrtnutí <strong>Vytvořit i v AD</strong> zavolá <code>samba-tool computer create</code> pro nové záznamy (vyžaduje běh na DC)</li>
+    </ul>
+    <div class="tip">Blokování internetu přes Pi-hole funguje <strong>pouze</strong> pokud klienti dotazují Pi-hole přímo (ne přes DC jako forwarder). Pro garantované blokování použijte Ansible s pravidly nftables.</div>
+</section>
+
+<!-- Uživatelé -->
+<section class="help-section" id="uzivatele">
+    <h2>👤 Uživatelé</h2>
+    <p>Správa uživatelských účtů v Active Directory.</p>
+    <h3>Dostupné operace</h3>
+    <ul>
+        <li><strong>Vytvořit uživatele</strong> — jméno, příjmení, přihlašovací jméno (UPN), heslo, OU</li>
+        <li><strong>Změnit heslo</strong> — reset bez znalosti stávajícího hesla (vyžaduje admin práva)</li>
+        <li><strong>Zakázat/Povolit účet</strong> — rychlé zablokování bez mazání</li>
+        <li><strong>Přidat do skupiny</strong> — hromadné přiřazení</li>
+        <li><strong>Smazat</strong> — nevratná operace, buďte opatrní</li>
+    </ul>
+    <h3>Import z CSV</h3>
+    <p>Tlačítko <strong>↑ Import CSV</strong> vedle tlačítka "+ Nový uživatel". Povinné sloupce: <code>username</code>, <code>first_name</code>, <code>last_name</code>.</p>
+    <pre>username,first_name,last_name,email,phone,department,job_title,title,manager
+novakj,Jan,Novák,novak@skola.cz,+420123456789,Učitelé,Učitel,Mgr.,rednik
+svobodap,Pavel,Svoboda,svoboda@skola.cz,,IT,Správce sítě,Bc.,novakj</pre>
+    <ul>
+        <li>Záhlaví lze psát česky (<code>jméno</code>, <code>příjmení</code>, <code>oddělení</code>…) nebo anglicky</li>
+        <li>Existující uživatelé (stejné <code>username</code>) se aktualizují</li>
+        <li>Zaškrtnutí <strong>Vytvořit i v AD</strong> volá <code>samba-tool user create</code>; AD heslo lze zadat v poli vedle</li>
+    </ul>
+    <div class="warn">Smazání uživatele v AD je nevratné. Zvažte nejprve zakázání účtu.</div>
+</section>
+
+<!-- Skupiny -->
+<section class="help-section" id="skupiny">
+    <h2>👥 Skupiny</h2>
+    <p>AD skupiny slouží k hromadnému přiřazování práv, GPO filtrování a organizaci uživatelů.</p>
+    <ul>
+        <li><strong>Vytvořit skupinu</strong> — tlačítko <strong>+ Nová skupina AD</strong>, zadejte název, typ a popis; vytvoří se v DB i v AD</li>
+        <li><strong>Smazat skupinu</strong> — odstraní z DB i z AD (potvrzovací dialog); odebrání skupiny neodstraní její členy</li>
+    </ul>
+    <h3>Import z CSV</h3>
+    <p>Tlačítko <strong>↑ Import CSV</strong>. Záhlaví je volitelné, pořadí sloupců: <code>name</code>, <code>kind</code>, <code>description</code>.</p>
+    <pre>name,kind,description
+Ucitele,user,Skupina učitelů
+PC-Ucebna1,computer,Počítače v učebně 1
+PC-Ucebna2,computer,Počítače v učebně 2</pre>
+    <ul>
+        <li><code>kind</code>: <code>computer</code> nebo <code>user</code> (lze psát česky: <code>počítače</code>, <code>uživatelé</code>)</li>
+        <li>Zaškrtnutí <strong>Synchronizovat s AD</strong> vytvoří skupiny i přes <code>samba-tool group add</code></li>
+        <li>Existující skupiny (stejný název) jsou přeskočeny</li>
+    </ul>
+    <div class="tip">Skupiny se používají ve <a href="#politiky" style="color:var(--accent)">Politikách GPO</a> pro cílené nasazení nastavení.</div>
+</section>
+
+<!-- DHCP -->
+<section class="help-section" id="dhcp">
+    <h2>🌐 DHCP</h2>
+    <p>Správa DHCP serveru — přehled rozsahů, aktivních pronájmů a statických rezervací.</p>
+    <h3>Záložky</h3>
+    <ul>
+        <li><strong>Pronájmy</strong> — aktuálně přiřazené IP adresy s MAC adresou a hostname</li>
+        <li><strong>Rezervace</strong> — statické přiřazení IP → MAC (klient vždy dostane stejnou IP)</li>
+        <li><strong>Rozsahy</strong> — DHCP pool: od–do, maska, gateway, DNS</li>
+    </ul>
+    <h3>Vytvoření rezervace</h3>
+    <ol>
+        <li>V tabulce <strong>Aktivní lease</strong> klikněte <strong>+ Rezervovat</strong> — IP, MAC a hostname se přenesou automaticky</li>
+        <li>Nebo vyplňte formulář <em>Přidat rezervaci</em> ručně</li>
+        <li>Od příštího obnovení pronájmu bude klient dostávat tuto IP</li>
+    </ol>
+    <div class="tip">DHCP je čteno přímo ze Samba/ISC DHCP démona přes SSH nebo lokální soubor. Změny se projeví při dalším obnovení pronájmu klientem.</div>
+</section>
+
+<!-- Pi-hole -->
+<section class="help-section" id="pihole">
+    <h2>🕳 Pi-hole</h2>
+    <p>DNS content filtering — blokování reklam, trackerů a malwaru na úrovni DNS pro celou síť.</p>
+    <h3>Skupiny a klienti</h3>
+    <p>
+        Pi-hole v6 umožňuje per-klient blokování přes skupiny. Klienti ve skupině
+        <code>dm-blokováno</code> mají blokován přístup k internetu přes DNS. Klienti
+        v <code>default</code> mají standardní filtrování.
+    </p>
+    <h3>Blokující seznamy (adlisty)</h3>
+    <ul>
+        <li><strong>Aktuální seznamy</strong> — tabulka aktivních adlistů s počtem domén a datem aktualizace</li>
+        <li><strong>Předvolby</strong> — kurátorský výběr populárních seznamů; zaškrtněte a klikněte <em>Přidat vybrané</em></li>
+        <li><strong>Vlastní URL</strong> — přidejte libovolný adlist z internetu</li>
+        <li><strong>Zapnout/Vypnout</strong> — každý seznam lze dočasně deaktivovat bez smazání</li>
+    </ul>
+    <h3>Aktualizace gravity</h3>
+    <p>
+        Po přidání nových seznamů je nutné spustit <strong>Aktualizovat gravity</strong> — Pi-hole
+        stáhne všechny adlisty a zkompiluje je do lokální databáze. Operace trvá 1–5 minut.
+    </p>
+    <div class="warn">
+        Per-klient blokování funguje <strong>pouze</strong> pokud klienti dotazují Pi-hole přímo.
+        Pokud klienti jdou přes DC (Samba DNS forwarder), Pi-hole vidí všechny dotazy jako od DC
+        a per-klient nastavení nemá efekt.
+    </div>
+</section>
+
+<!-- Ansible -->
+<section class="help-section" id="ansible">
+    <h2>⚙️ Ansible</h2>
+    <p>Automatizace konfigurace klientů a serverů přes SSH bez nutnosti agentů.</p>
+    <h3>Spuštění playbooku</h3>
+    <ol>
+        <li>Vyberte playbook ze seznamu</li>
+        <li>Zadejte <strong>limit</strong> (volitelné) — název hosta, skupiny nebo <code>all</code></li>
+        <li>Klikněte <strong>Spustit</strong> — spustí se job a přesměruje na jeho výstup</li>
+        <li>Výstup se automaticky aktualizuje dokud job nedoběhne</li>
+    </ol>
+    <h3>Editor playbooků</h3>
+    <p>Zabudovaný editor s YAML zvýrazňováním syntaxe a knihovnou snippetů:</p>
+    <ul>
+        <li><span class="key">Ctrl+/</span> — zakomentovat/odkomentovat řádek</li>
+        <li><span class="key">Ctrl+F</span> — hledání v kódu</li>
+        <li><span class="key">Tab</span> — odsazení (2 mezery)</li>
+        <li>Panel vpravo — snippety seskupené po kategoriích; klik vloží šablonu na pozici kurzoru</li>
+    </ul>
+    <h3>Inventář</h3>
+    <p>Inventář je generován automaticky z dat v AD. Skupiny Ansible odpovídají OU v AD.</p>
+    <div class="tip">Playbook musí mít příponu <code>.yml</code> nebo <code>.yaml</code>. Název nesmí obsahovat lomítka ani <code>..</code></div>
+</section>
+
+<!-- Politiky -->
+<section class="help-section" id="politiky">
+    <h2>📋 Politiky GPO</h2>
+    <p>Správa Group Policy Objects (GPO) v Samba AD.</p>
+    <ul>
+        <li><strong>Vytvořit politiku</strong> — GPO objekt v AD s volitelným popisem</li>
+        <li><strong>Propojit s OU</strong> — politika se aplikuje na objekty v dané OU</li>
+        <li><strong>Upravit nastavení</strong> — otevře editor nastavení (pokud je dostupný RSAT nebo samba-tool)</li>
+        <li><strong>Vynutit / Zakázat dědičnost</strong> — prioritizace nebo blokování GPO</li>
+    </ul>
+    <div class="warn">Změny GPO se projeví při dalším obnovení skupinových politik na klientovi (<code>gpupdate /force</code>) nebo po přihlášení.</div>
+</section>
+
+<!-- Plánky -->
+<section class="help-section" id="planky">
+    <h2>🗺 Plánky sítě</h2>
+    <p>Vizuální editor pro zakreslení rozmístění zařízení do půdorysů budovy.</p>
+    <h3>Struktura</h3>
+    <p>Plánky jsou hierarchické — místnost může být pod patrem, patro pod budovou. Každý plánek má název a volitelný obrázek (SVG, PNG, JPG).</p>
+    <h3>Práce se zařízením</h3>
+    <ul>
+        <li><strong>Přidat zařízení</strong> — přetáhněte ikonu ze sloupce vpravo na plánek</li>
+        <li><strong>Přesunout</strong> — klikněte a držte na ikoně, poté táhněte</li>
+        <li><strong>Info panel</strong> — krátký klik levým tlačítkem zobrazí detail zařízení (IP, stav)</li>
+        <li><strong>Kontextové menu</strong> — pravý klik na ikonu nabídne akce (detail, odebrat z plánu)</li>
+        <li><strong>Odebrat ze scény</strong> — zařízení se vrátí do sloupce nepřiřazených; z AD se nesmaže</li>
+    </ul>
+    <div class="tip">Pozice se ukládají okamžitě po puštění tlačítka myši. Obrázek plánku se nahrává přes formulář editace.</div>
+</section>
+
+<!-- Síť / SNMP -->
+<section class="help-section" id="sit">
+    <h2>📡 Monitorování sítě</h2>
+    <p>Přehled síťových zařízení (switche, routery, AP) monitorovaných přes SNMP a ping.</p>
+    <ul>
+        <li><strong>Přidat zařízení</strong> — zadejte IP, SNMP community string a typ</li>
+        <li><strong>Stav</strong> — zelená = dostupné, červená = nedostupné, žlutá = degradované</li>
+        <li><strong>SNMP data</strong> — uptime, název, verze firmware, zatížení portů (pokud zařízení podporuje)</li>
+        <li><strong>Topologie</strong> — schéma propojení zobrazené jako graf</li>
+    </ul>
+    <div class="tip">SNMP v2c je výchozí. Pro SNMP v3 je potřeba zadat auth/priv hesla v konfiguraci zařízení.</div>
+</section>
+
+<!-- Certifikáty -->
+<section class="help-section" id="certy">
+    <h2>🔐 Certifikáty</h2>
+    <p>Přehled TLS certifikátů na serverech a sledování jejich platnosti.</p>
+    <ul>
+        <li><strong>Přidat certifikát</strong> — zadejte hostname:port nebo nahrajte PEM soubor</li>
+        <li><strong>Platnost</strong> — barevná indikace: zelená (30+ dní), žlutá (7–30 dní), červená (&lt;7 dní)</li>
+        <li><strong>Upozornění</strong> — systém může zasílat notifikace před vypršením (pokud jsou nastaveny)</li>
+    </ul>
+</section>
+
+<!-- Zálohy -->
+<section class="help-section" id="zalohy">
+    <h2>💾 Zálohy</h2>
+    <p>Správa záloh konfigurace a dat Domain Manageru i Samba AD.</p>
+    <ul>
+        <li><strong>Vytvořit zálohu</strong> — spustí zálohovací skript a uloží archiv</li>
+        <li><strong>Stáhnout</strong> — zálohu si můžete stáhnout přímo do prohlížeče</li>
+        <li><strong>Obnovit</strong> — import zálohy (pouze konfigurace DM, nikoli AD databáze)</li>
+        <li><strong>Plánované zálohy</strong> — nastavení přes cron v konfiguraci serveru</li>
+    </ul>
+    <div class="warn">Obnova zálohy přepíše aktuální konfiguraci. Zálohu AD databáze (<code>samba-tool domain backup</code>) provádějte odděleně.</div>
+</section>
+
+<!-- Zdraví -->
+<section class="help-section" id="zdravi">
+    <h2>💚 Zdraví systému</h2>
+    <p>Kontrolní panel dostupnosti všech součástí infrastruktury.</p>
+    <ul>
+        <li><strong>DC1, DC2</strong> — dostupnost Samba AD (LDAP port 389, Kerberos 88)</li>
+        <li><strong>Pi-hole</strong> — DNS port 53, webové API</li>
+        <li><strong>DHCP</strong> — port 67</li>
+        <li><strong>Domain Manager</strong> — vlastní stav (vždy OK pokud vidíte tuto stránku)</li>
+    </ul>
+    <p>Každá kontrola zobrazuje latenci a čas posledního ověření. Stránka se neobnovuje automaticky — použijte tlačítko <strong>Obnovit</strong>.</p>
+</section>
+
+<!-- Audit -->
+<section class="help-section" id="audit">
+    <h2>📝 Audit log</h2>
+    <p>Chronologický záznam všech akcí provedených v Domain Manageru.</p>
+    <ul>
+        <li>Každá write operace (vytvoření, úprava, smazání) zanechá záznam s časovým razítkem, uživatelem, typem akce a detaily</li>
+        <li>Log je uložen v databázi Domain Manageru (nikoli v AD)</li>
+        <li><strong>Filtrování</strong> — podle uživatele, akce nebo časového rozsahu</li>
+        <li><strong>Export</strong> — záznamy lze exportovat jako CSV</li>
+    </ul>
+    <div class="tip">Audit log sleduje pouze akce provedené přes webové rozhraní. Přímé změny v AD (přes RSAT, samba-tool) se zde nezobrazí.</div>
+</section>
+
+<!-- CLI -->
+<section class="help-section" id="cli">
+    <h2>⌨️ CLI příkazy</h2>
+    <p>Domain Manager lze ovládat z příkazové řádky přes nástroj <code>dm</code>.</p>
+    <h3>Správa webového serveru</h3>
+    <pre>dm web start           # spustí server na popředí
+dm web start --daemon  # spustí jako daemon na pozadí
+dm web stop            # zastaví server
+dm web restart         # restart
+dm web status          # zobrazí stav (PID, port, log)</pre>
+    <h3>Demo režim</h3>
+    <pre>DM_DEMO=1 dm web start --daemon</pre>
+    <h3>Správa konfigurace</h3>
+    <pre>dm config show         # zobrazí aktuální konfiguraci
+dm config set key val  # nastaví konfigurační hodnotu</pre>
+    <h3>Databáze</h3>
+    <pre>dm db migrate          # spustí migrace databáze
+dm db seed             # naplní demo daty</pre>
+    <h3>Ansible</h3>
+    <pre>dm ansible run playbook.yml         # spustí playbook
+dm ansible run playbook.yml --limit dc1</pre>
+    <div class="tip">Nápověda k libovolnému příkazu: <code>dm &lt;příkaz&gt; --help</code></div>
+</section>
+
+</div><!-- konec obsahu -->
+</div><!-- konec layout -->
+
+<script>
+// Zvýraznění aktivní sekce v TOC při scrollování
+(function() {
+    var sections = document.querySelectorAll('.help-section');
+    var links = document.querySelectorAll('.help-toc a');
+    function onScroll() {
+        var scrollY = window.scrollY + 80;
+        var current = null;
+        sections.forEach(function(s) {
+            if (s.offsetTop <= scrollY) current = s.id;
+        });
+        links.forEach(function(a) {
+            a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+        });
+    }
+    window.addEventListener('scroll', onScroll, {passive: true});
+    onScroll();
+})();
+</script>
+{% endblock %}

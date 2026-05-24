@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Audit log — Dominator{% endblock %}
+{% block head_extra %}
+<style>
+.audit-filters { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; align-items: flex-end; }
+.audit-filters select, .audit-filters input { padding: 6px 10px; font-size: 13px; }
+.audit-filters label { display: block; font-size: 11px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 3px; }
+.action-badge { font-family: monospace; font-size: 11px; background: rgba(74,158,255,0.1); border: 1px solid rgba(74,158,255,0.2); padding: 2px 6px; border-radius: 4px; color: var(--accent); }
+.detail-cell { font-size: 11px; color: var(--text-dim); font-family: monospace; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+</style>
+{% endblock %}
+{% block content %}
+<h1 style="margin-bottom: 8px;">Audit log</h1>
+<p style="color: var(--text-dim); margin-top: 0; font-size: 13px;">
+    Záznamy všech write operací. Celkem: <strong>{{ total }}</strong>
+</p>
+
+<form method="get" action="/audit">
+<div class="audit-filters">
+    <div>
+        <label>Uživatel</label>
+        <select name="actor">
+            <option value="">— vše —</option>
+            {% for a in actors %}
+            <option value="{{ a }}" {% if filter_actor == a %}selected{% endif %}>{{ a }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label>Akce</label>
+        <input name="action" value="{{ filter_action }}" placeholder="create_, update_…" style="width: 160px;">
+    </div>
+    <div>
+        <label>Typ cíle</label>
+        <select name="target_type">
+            <option value="">— vše —</option>
+            {% for t in target_types %}
+            <option value="{{ t }}" {% if filter_target_type == t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label>Na stránku</label>
+        <select name="per_page">
+            {% for n in [50, 100, 200, 500] %}
+            <option value="{{ n }}" {% if per_page == n %}selected{% endif %}>{{ n }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button type="submit">Filtrovat</button>
+    <a href="/audit" style="color: var(--text-dim); font-size: 13px; padding: 8px 0;">Resetovat</a>
+</div>
+</form>
+
+<div class="card" style="padding: 0; overflow: hidden;">
+<table style="font-size: 12px;">
+    <thead>
+        <tr>
+            <th style="width: 140px;">Čas</th>
+            <th style="width: 90px;">Uživatel</th>
+            <th style="width: 160px;">Akce</th>
+            <th style="width: 90px;">Typ cíle</th>
+            <th style="width: 60px;">ID</th>
+            <th>Detaily</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for e in entries %}
+    <tr>
+        <td style="font-family: monospace; color: var(--text-dim);">{{ e.ts }}</td>
+        <td>
+            <span style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">
+                {{ e.actor }}
+            </span>
+        </td>
+        <td><span class="action-badge">{{ e.action }}</span></td>
+        <td style="color: var(--text-dim);">{{ e.target_type }}</td>
+        <td style="color: var(--text-dim);">
+            {% if e.target_id %}{{ e.target_id }}{% else %}—{% endif %}
+        </td>
+        <td class="detail-cell" title="{{ e.details | tojson }}">
+            {% if e.details %}{{ e.details | tojson | truncate(80) }}{% else %}—{% endif %}
+        </td>
+    </tr>
+    {% else %}
+    <tr>
+        <td colspan="6" style="text-align:center; padding: 32px; color: var(--text-dim);">
+            Žádné záznamy v audit logu.
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+
+{% if total_pages > 1 %}
+<div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px;">
+    {% for p in range(1, [total_pages + 1, 11] | min) %}
+    <a href="/audit?page={{ p }}&per_page={{ per_page }}&actor={{ filter_actor }}&action={{ filter_action }}&target_type={{ filter_target_type }}"
+       style="padding: 6px 12px; border-radius: 6px; font-size: 13px; text-decoration: none;
+              background: {% if p == page %}var(--accent){% else %}var(--border){% endif %};
+              color: {% if p == page %}white{% else %}var(--text){% endif %};">
+        {{ p }}
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

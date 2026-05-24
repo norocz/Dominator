@@ -1,0 +1,44 @@
+---
+# Záloha PostgreSQL databáze Domain Managera.
+# Výstup: {{ backup_dir }}/db/domainmgr_YYYYMMDD_HHMMSS.sql.gz
+- name: Záloha PostgreSQL
+  hosts: dc1
+  become: true
+  vars:
+    backup_dir: /var/lib/domain-manager/backups
+    db_name: domainmgr
+    db_user: domainmgr
+    keep_days: 30
+    timestamp: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
+
+  tasks:
+    - name: Vytvořit adresář pro zálohy DB
+      file:
+        path: "{{ backup_dir }}/db"
+        state: directory
+        owner: postgres
+        mode: "0750"
+
+    - name: Záloha pomocí pg_dump
+      command: >
+        pg_dump -U {{ db_user }} -Fc {{ db_name }}
+        -f {{ backup_dir }}/db/{{ db_name }}_{{ timestamp }}.dump
+      become_user: postgres
+      register: pg_dump_result
+
+    - name: Výsledek zálohy
+      debug:
+        msg: "Záloha dokončena: {{ backup_dir }}/db/{{ db_name }}_{{ timestamp }}.dump"
+
+    - name: Smazat staré zálohy (> {{ keep_days }} dní)
+      find:
+        paths: "{{ backup_dir }}/db"
+        patterns: "*.dump"
+        age: "{{ keep_days }}d"
+      register: old_backups
+
+    - name: Odstranit staré zálohy
+      file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ old_backups.files }}"

@@ -1,0 +1,43 @@
+---
+# Záloha Samba AD domény pomocí samba-tool.
+# Vytvoří komprimovaný tar balíček zálohy.
+- name: Záloha Samba AD
+  hosts: dc1
+  become: true
+  vars:
+    backup_dir: /var/lib/domain-manager/backups
+    keep_days: 30
+    timestamp: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
+
+  tasks:
+    - name: Vytvořit adresář pro zálohy Samba
+      file:
+        path: "{{ backup_dir }}/samba"
+        state: directory
+        mode: "0700"
+
+    - name: Záloha Samba AD pomocí samba-tool
+      command: >
+        samba-tool domain backup online
+        --targetdir={{ backup_dir }}/samba
+        --server=localhost
+        --use-kerberos=off
+      register: samba_backup_result
+      ignore_errors: false
+
+    - name: Výsledek zálohy Samba
+      debug:
+        msg: "{{ samba_backup_result.stdout }}"
+
+    - name: Smazat staré zálohy Samba (> {{ keep_days }} dní)
+      find:
+        paths: "{{ backup_dir }}/samba"
+        patterns: "*.tar.bz2"
+        age: "{{ keep_days }}d"
+      register: old_samba_backups
+
+    - name: Odstranit staré zálohy Samba
+      file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ old_samba_backups.files }}"

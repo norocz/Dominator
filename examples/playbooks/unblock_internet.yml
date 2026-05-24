@@ -1,0 +1,29 @@
+---
+# unblock_internet.yml — Odblokuje přístup k internetu na cílových počítačích.
+
+- name: Odblokovat internet — Linux (nftables)
+  hosts: "{{ target_host | default('all') }}"
+  gather_facts: true
+  become: true
+
+  tasks:
+    - name: Odebrat nftables tabulku dm_internet_block
+      command: nft delete table inet dm_internet_block
+      failed_when: false
+      when: ansible_os_family == "Debian"
+
+    - name: Odebrat konfigurační soubor
+      file:
+        path: /etc/nftables-dm-block.conf
+        state: absent
+      when: ansible_os_family == "Debian"
+
+    - name: Odebrat Windows Defender Firewall pravidla
+      win_shell: |
+        Remove-NetFirewallRule -DisplayName "DM-InternetBlock" -ErrorAction SilentlyContinue
+        Remove-NetFirewallRule -DisplayName "DM-Allow-RFC1918" -ErrorAction SilentlyContinue
+      when: ansible_os_family == "Windows"
+
+    - name: Výsledek
+      debug:
+        msg: "Internet ODBLOKOVÁN na {{ inventory_hostname }}"

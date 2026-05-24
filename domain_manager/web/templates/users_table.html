@@ -1,0 +1,78 @@
+{% set sort = current_sort %}
+<table class="data">
+    <thead>
+        <tr>
+            {% for col in columns %}
+            <th onclick="applySort('{{ col }}')">
+                {{ column_labels[col] }}
+                {% if sort == col %}<span class="sort-arrow">▲</span>
+                {% elif sort == '-' + col %}<span class="sort-arrow">▼</span>{% endif %}
+            </th>
+            {% endfor %}
+            <th style="width: 60px;"></th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for u in rows %}
+    <tr>
+        {% for col in columns %}
+        <td>
+            {% if col == "username" %}
+                <a href="/users/{{ u.id }}" style="color: var(--accent); text-decoration: none; font-weight: 500;">
+                    {{ u.username }}
+                </a>
+            {% elif col == "enabled" %}
+                {% if u.enabled %}
+                <span class="badge online">Aktivní</span>
+                {% else %}
+                <span class="badge offline">Deaktivovaný</span>
+                {% endif %}
+            {% elif col == "last_logon" %}
+                <span style="color: var(--text-dim); font-size: 12px;">{{ u[col] or '—' }}</span>
+            {% elif col == "email" %}
+                {% if u.email %}
+                <a href="mailto:{{ u.email }}" style="color: var(--accent); font-size: 12px; text-decoration: none;">{{ u.email }}</a>
+                {% else %}—{% endif %}
+            {% else %}
+                {{ u[col] or '—' }}
+            {% endif %}
+        </td>
+        {% endfor %}
+        <td>
+            <a href="/users/{{ u.id }}" style="color: var(--text-dim); font-size: 12px;">Detail</a>
+        </td>
+    </tr>
+    {% else %}
+    <tr>
+        <td colspan="{{ columns|length + 1 }}" style="text-align: center; color: var(--text-dim); padding: 32px;">
+            Žádní uživatelé nenalezeni.
+            <a href="/users/new" style="color: var(--accent);">Přidat prvního uživatele →</a>
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+<div class="pager">
+    <div class="info">
+        {% if total == 0 %}Žádné záznamy{% else %}
+        {{ (page - 1) * per_page + 1 }}–{{ [page * per_page, total] | min }} z {{ total }}
+        {% endif %}
+    </div>
+    {% if total_pages > 1 %}
+    {% for p in range(1, total_pages + 1) %}
+    <button type="button"
+            {% if p == page %}style="background: var(--accent);"{% else %}style="background: var(--border);"{% endif %}
+            onclick="changePage({{ p }})">{{ p }}</button>
+    {% endfor %}
+    {% endif %}
+</div>
+
+<script>
+function changePage(p) {
+    const form = document.getElementById('filter-form');
+    const url = new URL(window.location.href);
+    url.searchParams.set('page', p);
+    htmx.ajax('GET', '/users/table?' + url.searchParams.toString(), {target: '#table-slot', swap: 'innerHTML'});
+}
+</script>

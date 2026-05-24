@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Politiky — Dominator{% endblock %}
+{% block content %}
+<div style="display: flex; align-items: baseline; gap: 16px; margin-bottom: 8px;">
+    <h1 style="margin: 0;">Politiky</h1>
+    <div style="display: flex; gap: 8px;">
+        {% for kind_key, kind_label in kinds.items() %}
+        <a href="/policies/new?kind={{ kind_key }}" class="btn btn-secondary" style="font-size: 12px; padding: 5px 12px;">
+            + {{ kind_label }}
+        </a>
+        {% endfor %}
+    </div>
+</div>
+<p style="color: var(--text-dim); margin-top: 0; font-size: 13px;">
+    Sady nastavení přiřaditelné na počítače, skupiny a uživatele. Vyšší priorita přepisuje nižší.
+</p>
+
+{% if not policies %}
+<div class="card" style="text-align: center; padding: 40px; color: var(--text-dim);">
+    Žádné politiky. Vytvořte první kliknutím na tlačítko výše.
+</div>
+{% else %}
+
+{% set kind_groups = {} %}
+{% for p in policies %}
+    {% if p.kind not in kind_groups %}{% set _ = kind_groups.update({p.kind: []}) %}{% endif %}
+    {% set _ = kind_groups[p.kind].append(p) %}
+{% endfor %}
+
+{% for kind_key, kind_policies in kind_groups.items() %}
+<div class="card" style="margin-bottom: 16px;">
+    <h2 style="font-size: 14px; margin-bottom: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em;">
+        {{ kinds.get(kind_key, kind_key) }}
+    </h2>
+    <table style="font-size: 13px;">
+        <thead>
+            <tr>
+                <th>Název</th>
+                <th>Popis</th>
+                <th style="text-align: center;">Přiřazení</th>
+                <th>Vytvořeno</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for p in kind_policies %}
+        <tr>
+            <td>
+                <a href="/policies/{{ p.id }}" style="color: var(--accent); text-decoration: none; font-weight: 500;">
+                    {{ p.name }}
+                </a>
+            </td>
+            <td style="color: var(--text-dim); font-size: 12px;">{{ p.description or "—" }}</td>
+            <td style="text-align: center;">
+                {% if p.assignments > 0 %}
+                <span style="background: rgba(74,158,255,0.15); color: var(--accent); padding: 2px 8px; border-radius: 10px; font-size: 11px;">
+                    {{ p.assignments }}
+                </span>
+                {% else %}
+                <span style="color: var(--text-dim);">0</span>
+                {% endif %}
+            </td>
+            <td style="color: var(--text-dim); font-size: 12px;">{{ p.created_at }}</td>
+            <td>
+                <a href="/policies/{{ p.id }}" style="color: var(--text-dim); font-size: 12px;">Upravit →</a>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

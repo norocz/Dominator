@@ -1,0 +1,10 @@
+---
+# Kompletní záloha — spouští db, samba a pihole zálohy v jednom.
+- name: Kompletní záloha Dominator
+  import_playbook: backup_db.yml
+
+- name: Záloha Samba AD
+  import_playbook: backup_samba.yml
+
+- name: Záloha Pi-hole
+  import_playbook: backup_pihole.yml

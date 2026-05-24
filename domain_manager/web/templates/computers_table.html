@@ -1,0 +1,87 @@
+{# Fragment tabulky. Renderuje se sám i přes HTMX do #table-slot. #}
+<div class="pager" style="margin-top: 0; margin-bottom: 8px;">
+    <div class="info">
+        {% if total %}
+            Nalezeno <strong>{{ total }}</strong> počítačů
+            {% if page > 1 or total > per_page %}
+                · zobrazeno {{ (page - 1) * per_page + 1 }}–{{ [page * per_page, total] | min }}
+            {% endif %}
+        {% else %}
+            <em>Žádné výsledky.</em> Zkuste uvolnit filtr nebo importovat data přes <code>dm import computers</code>.
+        {% endif %}
+    </div>
+</div>
+
+{% if rows %}
+<div style="overflow-x: auto;">
+<table class="data">
+    <thead>
+        <tr>
+            {% for col in columns %}
+            {% set sort = current_sort %}
+            {% set is_asc = sort == col %}
+            {% set is_desc = sort == '-' + col %}
+            <th onclick="applySort('{{ col }}')">
+                {{ column_labels.get(col, col) }}
+                {% if is_asc %}<span class="sort-arrow">▲</span>{% endif %}
+                {% if is_desc %}<span class="sort-arrow">▼</span>{% endif %}
+            </th>
+            {% endfor %}
+            <th style="width: 90px; text-align: center;">Internet</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in rows %}
+        <tr>
+            {% for col in columns %}
+            {% set v = r[col] %}
+            <td class="{% if col in ['cpu_cores','ram_mb','storage_total_gb','last_cpu_pct','last_ram_used_pct','last_disk_used_pct'] %}num{% endif %}">
+                {% if col == 'hostname' %}
+                    <a href="/computers/{{ r.id }}" style="color: var(--accent); text-decoration: none;">
+                        {{ v }}
+                    </a>
+                {% elif col == 'is_online' %}
+                    {% if v %}<span class="badge online">●</span>{% else %}<span class="badge offline">●</span>{% endif %}
+                {% elif col == 'is_domain_joined' %}
+                    {% if v %}<span style="color: var(--success);">✓</span>{% else %}—{% endif %}
+                {% elif col in ['last_cpu_pct','last_ram_used_pct','last_disk_used_pct'] and v is not none %}
+                    {{ v }}%
+                {% elif v is none or v == '' %}
+                    <span style="color: var(--text-dim);">—</span>
+                {% else %}
+                    {{ v }}
+                {% endif %}
+            </td>
+            {% endfor %}
+            {# Internet sloupec - vždy viditelný, rychlé přepnutí #}
+            <td style="text-align: center; white-space: nowrap;">
+                {% if r.internet_blocked %}
+                <span title="Zablokováno" style="color: var(--danger); cursor: default;">🚫</span>
+                {% else %}
+                <span title="Povoleno" style="color: var(--success); cursor: default;">🌐</span>
+                {% endif %}
+                <a href="/computers/{{ r.id }}#internet-section"
+                   style="color: var(--text-dim); font-size: 11px; margin-left: 4px;">
+                    ↗
+                </a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+<div class="pager">
+    <div class="info">Stránka {{ page }} z {{ total_pages }}</div>
+    {% if page > 1 %}
+        <button type="button"
+                hx-get="/computers/table?{{ request.url.query | replace('page=' + page|string, 'page=' + (page-1)|string) if 'page=' in request.url.query else request.url.query + '&page=' + (page-1)|string }}"
+                hx-target="#table-slot">‹ Předchozí</button>
+    {% endif %}
+    {% if page < total_pages %}
+        <button type="button"
+                hx-get="/computers/table?{{ request.url.query | replace('page=' + page|string, 'page=' + (page+1)|string) if 'page=' in request.url.query else request.url.query + '&page=' + (page+1)|string }}"
+                hx-target="#table-slot">Další ›</button>
+    {% endif %}
+</div>
+{% endif %}

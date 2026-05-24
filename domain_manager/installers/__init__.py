@@ -1,0 +1,1 @@
+"""Instalátory jednotlivých komponent."""

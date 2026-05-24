@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Certifikáty — Dominator{% endblock %}
+{% block head_extra %}
+<style>
+.cert-status-ok       { color: var(--success); }
+.cert-status-warning  { color: var(--warning); }
+.cert-status-critical { color: var(--danger); }
+.cert-status-expired  { color: var(--danger); font-weight: 700; }
+.cert-status-unknown  { color: var(--text-dim); }
+</style>
+{% endblock %}
+{% block content %}
+<div style="display: flex; align-items: baseline; gap: 16px; margin-bottom: 8px;">
+    <h1 style="margin: 0;">SSL/TLS certifikáty</h1>
+    <button
+        hx-post="/certs/refresh-all"
+        hx-target="#refresh-result"
+        hx-swap="innerHTML"
+        style="font-size: 13px; padding: 6px 14px; background: var(--border);">
+        ↻ Zkontrolovat všechny
+    </button>
+    <span id="refresh-result" style="font-size: 13px;"></span>
+</div>
+<p style="color: var(--text-dim); margin-top: 0; font-size: 13px;">
+    Monitoring expirace TLS certifikátů. Zkontrolováno: {{ now }}
+</p>
+
+<!-- Formulář pro přidání certifikátu -->
+<div class="card">
+    <h2 style="font-size: 14px; margin-bottom: 12px;">Přidat sledovaný host</h2>
+    <form method="post" action="/certs" style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
+        <div>
+            <label style="font-size: 11px; color: var(--text-dim); display: block; margin-bottom: 3px;">Hostname *</label>
+            <input name="hostname" required placeholder="dc1.firma.cz" style="width: 220px;">
+        </div>
+        <div>
+            <label style="font-size: 11px; color: var(--text-dim); display: block; margin-bottom: 3px;">Port</label>
+            <input name="port" type="number" value="443" style="width: 80px;">
+        </div>
+        <div>
+            <label style="font-size: 11px; color: var(--text-dim); display: block; margin-bottom: 3px;">Poznámka</label>
+            <input name="notes" placeholder="Webový server, LDAPS…" style="width: 200px;">
+        </div>
+        <button type="submit" class="btn" style="font-size: 13px;">Přidat</button>
+    </form>
+</div>
+
+{% if not certs %}
+<div class="card" style="text-align: center; padding: 40px; color: var(--text-dim);">
+    Žádné certifikáty ke sledování. Přidejte hostname výše.
+</div>
+{% else %}
+<div class="card" style="padding: 0; overflow: hidden;">
+<table style="font-size: 13px;">
+    <thead>
+        <tr>
+            <th>Host</th>
+            <th>Subject CN</th>
+            <th>Vydavatel</th>
+            <th>Platný od</th>
+            <th>Platný do</th>
+            <th style="text-align: center;">Zbývá</th>
+            <th>Fingerprint</th>
+            <th>Kontrola</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for c in certs %}
+    <tr>
+        <td>
+            <strong>{{ c.hostname }}</strong>
+            {% if c.port != 443 %}<span style="color:var(--text-dim); font-size:11px;">:{{ c.port }}</span>{% endif %}
+        </td>
+        <td style="font-family: monospace; font-size: 12px;">{{ c.subject_cn }}</td>
+        <td style="color: var(--text-dim); font-size: 12px;">{{ c.issuer }}</td>
+        <td style="font-size: 12px; color: var(--text-dim);">{{ c.not_before }}</td>
+        <td style="font-size: 12px;">{{ c.not_after }}</td>
+        <td style="text-align: center;">
+            {% if c.days_until_expiry is not none %}
+            <span class="cert-status-{{ c.status }}" style="font-weight: 600;">
+                {% if c.days_until_expiry < 0 %}
+                Expirováno!
+                {% else %}
+                {{ c.days_until_expiry }} dní
+                {% endif %}
+            </span>
+            {% else %}
+            <span style="color: var(--text-dim);">—</span>
+            {% endif %}
+        </td>
+        <td style="font-family: monospace; font-size: 10px; color: var(--text-dim);">{{ c.fingerprint }}</td>
+        <td style="font-size: 11px; color: var(--text-dim);">
+            {{ c.last_checked }}
+            {% if c.check_error %}
+            <br><span style="color: var(--danger);" title="{{ c.check_error }}">⚠ {{ c.check_error[:40] }}</span>
+            {% endif %}
+        </td>
+        <td style="white-space: nowrap;">
+            <form method="post" action="/certs/{{ c.id }}/refresh" style="display: inline;">
+                <button type="submit" style="font-size: 11px; padding: 2px 8px; background: var(--border);" title="Zkontrolovat znovu">↻</button>
+            </form>
+            <form method="post" action="/certs/{{ c.id }}/delete" style="display: inline;"
+                  onsubmit="return confirm('Odebrat sledování {{ c.hostname }}?')">
+                <button type="submit" style="font-size: 11px; padding: 2px 8px; background: var(--border);">✕</button>
+            </form>
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endif %}
+{% endblock %}

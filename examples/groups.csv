@@ -1,0 +1,12 @@
+name;description;kind
+Ucetni;Účetní oddělení;user
+Marketing;Marketing oddělení;user
+IT;IT oddělení;user
+Admins;Administrátoři domény;user
+Vsichni;Všichni zaměstnanci;user
+ucetni-pc;Počítače účetního oddělení;computer
+marketing-pc;Počítače marketingu;computer
+it-pc;Počítače IT;computer
+sklad-pc;Počítače ve skladu;computer
+servery;Servery;computer
+vsechna-pc;Všechny počítače domény;computer

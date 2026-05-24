@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}{{ c.hostname }} - Domain Manager{% endblock %}
+{% block head_extra %}
+<style>
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .detail-section { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+    .detail-section h3 { margin-top: 0; color: var(--accent); font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .kv { display: grid; grid-template-columns: 140px 1fr; gap: 8px 16px; font-size: 13px; }
+    .kv .k { color: var(--text-dim); }
+    .kv .v { font-variant-numeric: tabular-nums; }
+    .kv input, .kv select { padding: 4px 8px; font-size: 13px; }
+    .header-row { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+    .header-row h1 { margin: 0; }
+    .actions { display: flex; gap: 8px; margin-left: auto; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="header-row">
+    <a href="/computers" style="color: var(--text-dim); text-decoration: none;">← zpět na seznam</a>
+    <h1>{{ c.hostname }}</h1>
+    {% if c.is_online %}
+        <span class="badge online">● online</span>
+    {% else %}
+        <span class="badge offline">● offline</span>
+    {% endif %}
+    <span style="color: var(--text-dim);">{{ c.os_name or '' }}</span>
+    <div class="actions">
+        <button type="submit" form="edit-form">Uložit</button>
+    </div>
+</div>
+
+<form id="edit-form" method="post" action="/computers/{{ c.id }}">
+<div class="detail-grid">
+
+    <div class="detail-section">
+        <h3>Identita</h3>
+        <div class="kv">
+            <div class="k">Hostname</div>      <div class="v"><input name="hostname" value="{{ c.hostname or '' }}"></div>
+            <div class="k">FQDN</div>          <div class="v"><input name="fqdn" value="{{ c.fqdn or '' }}"></div>
+            <div class="k">Inv. číslo</div>    <div class="v"><input name="asset_tag" value="{{ c.asset_tag or '' }}"></div>
+            <div class="k">Popis</div>         <div class="v"><input name="description" value="{{ c.description or '' }}"></div>
+        </div>
+    </div>
+
+    <div class="detail-section">
+        <h3>Síť</h3>
+        <div class="kv">
+            <div class="k">MAC</div>           <div class="v"><input name="mac" value="{{ c.mac or '' }}"></div>
+            <div class="k">IP (rezerv.)</div>  <div class="v"><input name="ip_reserved" value="{{ c.ip_reserved or '' }}"></div>
+            <div class="k">Další MAC</div>     <div class="v">{{ c.additional_macs | join(', ') if c.additional_macs else '—' }}</div>
+            <div class="k">V doméně</div>      <div class="v">{{ '✓' if c.is_domain_joined else '—' }}</div>
+        </div>
+    </div>
+
+    <div class="detail-section">
+        <h3>Hardware</h3>
+        <div class="kv">
+            <div class="k">Výrobce</div>       <div class="v"><input name="manufacturer" value="{{ c.manufacturer or '' }}"></div>
+            <div class="k">Model</div>         <div class="v"><input name="model" value="{{ c.model or '' }}"></div>
+            <div class="k">S/N</div>           <div class="v"><input name="serial_number" value="{{ c.serial_number or '' }}"></div>
+            <div class="k">Typ</div>           <div class="v">
+                <select name="form_factor">
+                    <option value=""></option>
+                    {% for opt in ['desktop','laptop','server','vm','thin-client','all-in-one'] %}
+                    <option value="{{ opt }}" {% if c.form_factor == opt %}selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="k">CPU</div>           <div class="v">{{ c.cpu_model or '—' }} ({{ c.cpu_cores or '?' }}c/{{ c.cpu_threads or '?' }}t)</div>
+            <div class="k">RAM</div>           <div class="v">{{ '%s MB'|format(c.ram_mb) if c.ram_mb else '—' }}</div>
+            <div class="k">Disk</div>          <div class="v">{{ '%s GB %s'|format(c.storage_total_gb, c.storage_type or '') if c.storage_total_gb else '—' }}</div>
+            <div class="k">GPU</div>           <div class="v">{{ c.gpu or '—' }}</div>
+        </div>
+    </div>
+
+    <div class="detail-section">
+        <h3>Operační systém</h3>
+        <div class="kv">
+            <div class="k">Rodina</div>        <div class="v">{{ c.os_family or '—' }}</div>
+            <div class="k">Název</div>         <div class="v">{{ c.os_name or '—' }}</div>
+            <div class="k">Verze</div>         <div class="v">{{ c.os_version or '—' }}</div>
+            <div class="k">Build</div>         <div class="v">{{ c.os_build or '—' }}</div>
+            <div class="k">Architektura</div>  <div class="v">{{ c.os_arch or '—' }}</div>
+            <div class="k">Kernel</div>        <div class="v">{{ c.kernel_version or '—' }}</div>
+        </div>
+    </div>
+
+    <div class="detail-section">
+        <h3>Lokace a vlastnictví</h3>
+        <div class="kv">
+            <div class="k">Lokace</div>        <div class="v"><input name="location" value="{{ c.location or '' }}"></div>
+            <div class="k">Budova</div>        <div class="v"><input name="building" value="{{ c.building or '' }}"></div>
+            <div class="k">Patro</div>         <div class="v"><input name="floor" value="{{ c.floor or '' }}"></div>
+            <div class="k">Místnost</div>      <div class="v"><input name="room" value="{{ c.room or '' }}"></div>
+            <div class="k">Oddělení</div>      <div class="v"><input name="department" value="{{ c.department or '' }}"></div>
+            <div class="k">Hl. uživatel</div>  <div class="v"><input name="primary_user" value="{{ c.primary_user or '' }}"></div>
+        </div>
+    </div>
+
+    <div class="detail-section">
+        <h3>Životní cyklus</h3>
+        <div class="kv">
+            <div class="k">Stav</div>          <div class="v">
+                <select name="status">
+                    {% for opt in ['active','inactive','decommissioned','stock','repair','lost'] %}
+                    <option value="{{ opt }}" {% if c.status == opt %}selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="k">Pořízeno</div>      <div class="v">{{ c.purchase_date or '—' }}</div>
+            <div class="k">Cena</div>          <div class="v">{{ '%s %s'|format(c.purchase_price / 100, c.purchase_currency) if c.purchase_price else '—' }}</div>
+            <div class="k">Záruka do</div>     <div class="v">{{ c.warranty_until or '—' }}</div>
+            <div class="k">Dodavatel</div>     <div class="v"><input name="supplier" value="{{ c.supplier or '' }}"></div>
+            <div class="k">Faktura</div>       <div class="v">{{ c.invoice_number or '—' }}</div>
+        </div>
+    </div>
+
+    <div class="detail-section">
+        <h3>Stav z monitoringu</h3>
+        <div class="kv">
+            <div class="k">Naposledy</div>     <div class="v">{{ c.last_seen or '—' }}</div>
+            <div class="k">Uptime</div>        <div class="v">{{ '%d h'|format(c.uptime_seconds // 3600) if c.uptime_seconds else '—' }}</div>
+            <div class="k">CPU</div>           <div class="v">{{ '%s%%'|format(c.last_cpu_pct) if c.last_cpu_pct is not none else '—' }}</div>
+            <div class="k">RAM</div>           <div class="v">{{ '%s%%'|format(c.last_ram_used_pct) if c.last_ram_used_pct is not none else '—' }}</div>
+            <div class="k">Disk</div>          <div class="v">{{ '%s%%'|format(c.last_disk_used_pct) if c.last_disk_used_pct is not none else '—' }}</div>
+        </div>
+    </div>
+
+    <div class="detail-section" style="grid-column: 1 / -1;">
+        <h3>Tagy a poznámky</h3>
+        <div class="kv">
+            <div class="k">Tagy</div>          <div class="v">
+                {% for t in c.tags %}<span class="badge" style="margin-right: 4px;">{{ t }}</span>{% endfor %}
+                {% if not c.tags %}<span style="color: var(--text-dim);">—</span>{% endif %}
+            </div>
+            <div class="k">Poznámky</div>      <div class="v">
+                <textarea name="notes" rows="3" style="resize: vertical;">{{ c.notes or '' }}</textarea>
+            </div>
+        </div>
+    </div>
+
+    {% include "computer_internet_fragment.html" %}
+
+    {% if c.installed_software %}
+    <div class="detail-section" style="grid-column: 1 / -1;">
+        <h3>Nainstalovaný software ({{ c.installed_software | length }})</h3>
+        <table class="data" style="font-size: 12px;">
+            <thead><tr><th>Název</th><th>Verze</th><th>Vydavatel</th></tr></thead>
+            <tbody>
+                {% for s in c.installed_software[:50] %}
+                <tr><td>{{ s.name }}</td><td>{{ s.version }}</td><td>{{ s.publisher or '' }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+</div>
+</form>
+{% endblock %}

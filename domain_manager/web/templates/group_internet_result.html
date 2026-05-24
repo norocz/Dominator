@@ -1,0 +1,19 @@
+{# HTMX fragment - výsledek blokování/odblokování skupiny #}
+<div class="card" style="border-left: 3px solid {% if action == 'block' %}var(--danger){% else %}var(--success){% endif %}; margin-bottom: 16px; padding: 14px 20px;">
+    <div style="font-weight: 600; margin-bottom: 6px;">
+        {% if action == 'block' %}🚫 Blokování internetu spuštěno{% else %}✓ Odblokování internetu spuštěno{% endif %}
+        — skupina <strong>{{ group_name }}</strong>
+    </div>
+    <div style="font-size: 12px; color: var(--text-dim);">
+        Zasažené počítače: {{ hostnames | join(', ') or '(žádné)' }}
+    </div>
+    {% if job_ids %}
+    <div style="margin-top: 8px;">
+        {% for jid in job_ids %}
+        <a href="/ansible/jobs/{{ jid }}" style="color: var(--accent); font-size: 12px;">
+            → Ansible job #{{ jid }}
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>

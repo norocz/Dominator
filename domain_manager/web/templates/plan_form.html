@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}{{ "Upravit plánek" if p else "Nový plánek" }} — Domain Manager{% endblock %}
+
+{% block content %}
+<div style="max-width:600px;">
+    <div style="margin-bottom:20px;">
+        <a href="/plans" style="color:var(--text-dim); text-decoration:none; font-size:13px;">← Plánky</a>
+        {% if p %}<a href="/plans/{{ p.id }}" style="color:var(--text-dim); text-decoration:none; font-size:13px;"> / {{ p.name }}</a>{% endif %}
+    </div>
+
+    <div class="card">
+        <h2 style="margin-top:0;">{{ "Upravit plánek" if p else "Nový plánek" }}</h2>
+
+        <form method="post"
+              action="{{ '/plans/' ~ p.id ~ '/update' if p else '/plans' }}"
+              enctype="multipart/form-data"
+              style="display:flex; flex-direction:column; gap:16px;">
+
+            <div>
+                <label style="display:block; margin-bottom:6px; font-size:13px; color:var(--text-dim);">Název</label>
+                <input type="text" name="name" required placeholder="např. Hlavní budova – 1. patro"
+                       value="{{ p.name if p else '' }}">
+            </div>
+
+            <div>
+                <label style="display:block; margin-bottom:6px; font-size:13px; color:var(--text-dim);">Nadřazený plánek (volitelné)</label>
+                <select name="parent_id">
+                    <option value="">— žádný (kořen) —</option>
+                    {% for parent in parents %}
+                    {% if not p or parent.id != p.id %}
+                    <option value="{{ parent.id }}" {{ "selected" if p and p.parent_id == parent.id }}>
+                        {{ parent.name }}
+                    </option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+                <p style="font-size:12px; color:var(--text-dim); margin:4px 0 0;">Například: patro patří pod budovu.</p>
+            </div>
+
+            <div>
+                <label style="display:block; margin-bottom:6px; font-size:13px; color:var(--text-dim);">
+                    Obrázek půdorysu
+                    {% if not p %}<span style="color:var(--danger);">*</span>{% endif %}
+                </label>
+                {% if p and p.image_url %}
+                <div style="margin-bottom:10px;">
+                    <img src="{{ p.image_url }}" alt="Náhled" style="max-width:100%; max-height:200px; border-radius:6px; border:1px solid var(--border);">
+                    <p style="font-size:12px; color:var(--text-dim); margin:4px 0 0;">Nahrát nový soubor přepíše stávající obrázek.</p>
+                </div>
+                {% endif %}
+                <input type="file" name="image" accept=".png,.jpg,.jpeg,.svg,.gif,.webp"
+                       {{ "required" if not p }}>
+                <p style="font-size:12px; color:var(--text-dim); margin:4px 0 0;">
+                    Podporované formáty: PNG, JPG, SVG, WebP. Rozměry se zjistí automaticky.
+                </p>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:4px;">
+                <button type="submit">{{ "Uložit změny" if p else "Vytvořit plánek" }}</button>
+                <a class="btn btn-secondary" href="{{ '/plans/' ~ p.id if p else '/plans' }}">Zrušit</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

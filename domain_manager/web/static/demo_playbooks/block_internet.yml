@@ -1,0 +1,79 @@
+---
+# block_internet.yml — Zablokuje přístup k internetu na cílových počítačích.
+#
+# Použití:
+#   ansible-playbook block_internet.yml -i inventory --limit pc-ucetni-01
+#
+# Co dělá:
+#   - Linux: přidá nftables pravidla blokující odchozí provoz na non-RFC1918 adresy
+#   - Windows: přidá Windows Defender Firewall pravidla (outbound block)
+#
+# Lokální DNS (vnitřní doména) zůstane funkční — je na RFC1918 adresách DC.
+
+- name: Blokovat internet — Linux (nftables)
+  hosts: "{{ target_host | default('all') }}"
+  gather_facts: true
+  become: true
+
+  tasks:
+    - name: Načíst OS rodinu
+      debug:
+        msg: "OS: {{ ansible_os_family }}"
+
+    - name: Nainstalovat nftables (Debian/Ubuntu)
+      apt:
+        name: nftables
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Vytvořit nftables konfiguraci pro blokování internetu
+      copy:
+        dest: /etc/nftables-dm-block.conf
+        content: |
+          table inet dm_internet_block {
+            set rfc1918 {
+              type ipv4_addr
+              flags interval
+              elements = { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8 }
+            }
+            chain output {
+              type filter hook output priority 0; policy accept;
+              ip daddr != @rfc1918 drop comment "dm: internet blocked"
+            }
+          }
+        mode: '0644'
+      when: ansible_os_family == "Debian"
+
+    - name: Načíst nftables pravidla
+      command: nft -f /etc/nftables-dm-block.conf
+      when: ansible_os_family == "Debian"
+
+    - name: Uložit pravidla pro persistence
+      command: nft list ruleset
+      register: nft_ruleset
+      changed_when: false
+      when: ansible_os_family == "Debian"
+
+    - name: Blokovat internet — Windows Defender Firewall
+      win_shell: |
+        # Odebrat existující dm-block pravidlo
+        Remove-NetFirewallRule -DisplayName "DM-InternetBlock" -ErrorAction SilentlyContinue
+        # Přidat nové pravidlo blokující odchozí do veřejných IP
+        New-NetFirewallRule `
+          -DisplayName "DM-InternetBlock" `
+          -Direction Outbound `
+          -Action Block `
+          -RemoteAddress 0.0.0.0/0 `
+          -Description "Blokováno Domain Managerem"
+        # Přidat výjimky pro RFC1918
+        New-NetFirewallRule `
+          -DisplayName "DM-Allow-RFC1918" `
+          -Direction Outbound `
+          -Action Allow `
+          -RemoteAddress 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16 `
+          -Description "Povoleno RFC1918 (Domain Manager)"
+      when: ansible_os_family == "Windows"
+
+    - name: Výsledek
+      debug:
+        msg: "Internet ZABLOKOVÁN na {{ inventory_hostname }}"

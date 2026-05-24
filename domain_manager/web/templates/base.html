@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Domain Manager{% endblock %}</title>
+    <script src="/static/vendor/htmx.min.js"></script>
+    <style>
+        :root {
+            --bg: #1a1d23;
+            --surface: #252830;
+            --border: #363a45;
+            --text: #e6e8ec;
+            --text-dim: #9da3ad;
+            --accent: #4a9eff;
+            --danger: #ef4444;
+            --success: #10b981;
+            --warning: #f59e0b;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .demo-banner {
+            background: var(--warning);
+            color: #000;
+            text-align: center;
+            padding: 5px 12px;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+        }
+        nav {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            height: 52px;
+            flex-wrap: wrap;
+        }
+        nav .brand {
+            font-weight: 700;
+            font-size: 15px;
+            margin-right: 8px;
+            white-space: nowrap;
+        }
+        nav a {
+            color: var(--text-dim);
+            text-decoration: none;
+            padding: 6px 10px;
+            border-radius: 6px;
+            white-space: nowrap;
+        }
+        nav a:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+        nav a.active { color: var(--accent); }
+        nav .spacer { flex: 1; }
+        main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+        h1, h2, h3 { margin-top: 0; }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        button, .btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        button:hover, .btn:hover { filter: brightness(1.1); }
+        .btn-danger { background: var(--danger); }
+        .btn-secondary { background: var(--border); }
+        input, select, textarea {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            width: 100%;
+        }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border); }
+        th { color: var(--text-dim); font-weight: 500; font-size: 12px; text-transform: uppercase; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; }
+        .badge.online, .badge.success { background: rgba(16,185,129,0.2); color: var(--success); }
+        .badge.offline, .badge.failed  { background: rgba(239,68,68,0.2); color: var(--danger); }
+        .badge.running { background: rgba(74,158,255,0.2); color: var(--accent); }
+        .badge.warning { background: rgba(245,158,11,0.2); color: var(--warning); }
+
+        /* Toast systém */
+        #toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-width: 420px;
+            pointer-events: none;
+        }
+        .dm-toast {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--accent);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: var(--text);
+            font-size: 13px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+            animation: toast-slide-in 0.2s ease-out;
+            pointer-events: all;
+            cursor: pointer;
+        }
+        .dm-toast.demo { border-left-color: var(--warning); }
+        .dm-toast.error { border-left-color: var(--danger); }
+        .dm-toast.success { border-left-color: var(--success); }
+        .dm-toast .toast-title { font-weight: 600; margin-bottom: 2px; font-size: 12px; }
+        .dm-toast .toast-body { color: var(--text-dim); }
+        @keyframes toast-slide-in {
+            from { transform: translateX(24px); opacity: 0; }
+            to   { transform: translateX(0);    opacity: 1; }
+        }
+    </style>
+    {% block head_extra %}{% endblock %}
+</head>
+<body>
+
+{% if demo_mode %}
+<div class="demo-banner">
+    ⚠ DEMO REŽIM — žádné akce se skutečně neprovedou &nbsp;|&nbsp; přihlášen jako: {{ user or "demo" }}
+</div>
+{% endif %}
+
+{% if user %}
+<nav>
+    <div class="brand">Domain Manager</div>
+    <a href="/dashboard">Přehled</a>
+    <a href="/computers">Počítače</a>
+    <a href="/users">Uživatelé</a>
+    <a href="/groups">Skupiny</a>
+    <a href="/dhcp">DHCP</a>
+    <a href="/pihole">Pi-hole</a>
+    <a href="/ansible">Ansible</a>
+    <a href="/policies">Politiky</a>
+    <a href="/plans">Plánky</a>
+    <a href="/snmp">Síť</a>
+    <a href="/certs">Certifikáty</a>
+    <a href="/backup">Zálohy</a>
+    <a href="/health">Zdraví</a>
+    <a href="/audit">Audit</a>
+    <div class="spacer"></div>
+    <a href="/help" style="color: var(--text-dim); font-size: 12px;">Nápověda</a>
+    <span style="color: var(--text-dim); font-size: 12px;">{{ user }}</span>
+    <a href="/logout" style="color: var(--text-dim); font-size: 12px;">Odhlásit</a>
+</nav>
+{% endif %}
+
+<main>
+{% block content %}{% endblock %}
+</main>
+
+<div id="toast-container"></div>
+
+<script>
+function showToast(title, body, type) {
+    type = type || 'info';
+    var container = document.getElementById('toast-container');
+    var toast = document.createElement('div');
+    toast.className = 'dm-toast ' + type;
+    toast.innerHTML = '<div class="toast-title">' + title + '</div>'
+                    + '<div class="toast-body">' + (body || '') + '</div>';
+    toast.onclick = function() { toast.remove(); };
+    container.appendChild(toast);
+    setTimeout(function() {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s';
+        setTimeout(function() { toast.remove(); }, 300);
+    }, 5000);
+}
+
+{% if demo_mode %}
+/* Demo interceptor — blokuje všechny write požadavky a zobrazí toast. */
+var _ALLOWED_PATHS = ['/login', '/logout'];
+
+var _ACTION_NAMES = {
+    'users':     { create: 'Vytvoření uživatele', save: 'Uložení uživatele', del: 'Smazání uživatele' },
+    'computers': { create: 'Vytvoření počítače',  save: 'Uložení počítače',  del: 'Smazání počítače'  },
+    'groups':    { create: 'Vytvoření skupiny',   save: 'Uložení skupiny',   del: 'Smazání skupiny'   },
+    'policies':  { create: 'Vytvoření politiky',  save: 'Uložení politiky',  del: 'Smazání politiky'  },
+    'plans':     { create: 'Nahrání plánku',      save: 'Uložení plánku',    del: 'Smazání plánku'    },
+    'ansible':   { create: 'Spuštění playbooku',  save: 'Spuštění playbooku', del: 'Zrušení jobu'    },
+};
+
+function _describeAction(method, path) {
+    var parts = path.replace(/^\//, '').split('/');
+    var section = parts[0];
+    var info = _ACTION_NAMES[section];
+    if (!info) return method.toUpperCase() + ' ' + path;
+    if (method === 'delete') return info.del;
+    if (parts.length === 1 || parts[1] === 'run') return info.create;
+    return info.save + ' #' + (parts[1] || '');
+}
+
+htmx.on('htmx:beforeRequest', function(evt) {
+    var verb = evt.detail.requestConfig.verb;
+    var path = evt.detail.requestConfig.path;
+    if (verb !== 'get' && _ALLOWED_PATHS.indexOf(path) === -1) {
+        evt.preventDefault();
+        var desc = _describeAction(verb, path);
+        showToast('Demo: akce zablokována', desc, 'demo');
+    }
+});
+
+document.addEventListener('submit', function(evt) {
+    var form = evt.target;
+    if (form.hasAttribute('data-demo-allow')) return;
+    var method = (form.method || 'get').toLowerCase();
+    var action = form.getAttribute('action') || window.location.pathname;
+    if (method !== 'get' && _ALLOWED_PATHS.indexOf(action) === -1) {
+        evt.preventDefault();
+        var data = new FormData(form);
+        var pairs = [];
+        data.forEach(function(v, k) {
+            if (!k.toLowerCase().includes('password') && !k.toLowerCase().includes('secret'))
+                pairs.push(k + '=' + v);
+        });
+        var desc = _describeAction(method, action);
+        if (pairs.length) desc += ' — ' + pairs.slice(0, 3).join(', ');
+        showToast('Demo: akce zablokována', desc, 'demo');
+    }
+}, true);
+{% endif %}
+</script>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

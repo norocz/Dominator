@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}Přehled — Domain Manager{% endblock %}
+
+{% block head_extra %}
+<style>
+.stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+.stat-card .num { font-size: 34px; font-weight: 700; line-height: 1; margin: 4px 0; }
+.stat-card .label { color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+.gauge { height: 4px; border-radius: 2px; background: var(--border); margin-top: 4px; overflow: hidden; }
+.gauge .fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>Přehled domény</h1>
+
+<!-- Statistiky -->
+<div class="stat-cards">
+    <div class="stat-card">
+        <div class="label">Počítače celkem</div>
+        <div class="num">{{ computer_count }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Online</div>
+        <div class="num" style="color: var(--success);">{{ online_count }}</div>
+        {% if computer_count > 0 %}
+        <div class="gauge">
+            <div class="fill" style="width: {{ (online_count / computer_count * 100) | int }}%; background: var(--success);"></div>
+        </div>
+        {% endif %}
+    </div>
+    <div class="stat-card">
+        <div class="label">Uživatelé</div>
+        <div class="num">{{ user_count }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Skupiny</div>
+        <div class="num">{{ group_count }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Blokováno (internet)</div>
+        <div class="num" style="color: {% if blocked_count > 0 %}var(--danger){% else %}var(--text-dim){% endif %};">
+            {{ blocked_count }}
+        </div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; align-items: start;">
+
+<!-- Levý sloupec -->
+<div>
+    <!-- Online počítače -->
+    <div class="card">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+            <h2 style="margin: 0; font-size: 15px;">Online počítače</h2>
+            <div style="flex: 1;"></div>
+            <div>
+                <button
+                    hx-post="/api/prometheus/sync"
+                    hx-target="#prom-sync-result"
+                    hx-swap="innerHTML"
+                    style="background: var(--border); color: var(--text); font-size: 12px; padding: 5px 12px;">
+                    ↻ Sync Prometheus
+                </button>
+                <div id="prom-sync-result" style="font-size: 12px; display: inline-block; margin-left: 8px;"></div>
+            </div>
+        </div>
+
+        {% if recent_online %}
+        <table style="font-size: 13px;">
+            <thead>
+                <tr>
+                    <th>Hostname</th>
+                    <th>IP</th>
+                    <th style="text-align: right;">CPU</th>
+                    <th style="text-align: right;">RAM</th>
+                    <th style="text-align: right;">Disk</th>
+                    <th>Naposledy</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for c in recent_online %}
+            <tr>
+                <td>
+                    <a href="/computers/{{ c.id }}" style="color: var(--accent); text-decoration: none;">
+                        {{ c.hostname }}
+                    </a>
+                </td>
+                <td style="font-variant-numeric: tabular-nums; color: var(--text-dim);">{{ c.ip }}</td>
+                <td style="text-align: right;">
+                    {% if c.cpu_pct is not none %}
+                    <span style="color: {% if c.cpu_pct > 85 %}var(--danger){% elif c.cpu_pct > 60 %}var(--warning){% else %}var(--text){% endif %};">
+                        {{ c.cpu_pct }}%
+                    </span>
+                    {% else %}—{% endif %}
+                </td>
+                <td style="text-align: right;">
+                    {% if c.ram_pct is not none %}
+                    <span style="color: {% if c.ram_pct > 90 %}var(--danger){% elif c.ram_pct > 75 %}var(--warning){% else %}var(--text){% endif %};">
+                        {{ c.ram_pct }}%
+                    </span>
+                    {% else %}—{% endif %}
+                </td>
+                <td style="text-align: right;">
+                    {% if c.disk_pct is not none %}
+                    <span style="color: {% if c.disk_pct > 90 %}var(--danger){% elif c.disk_pct > 75 %}var(--warning){% else %}var(--text){% endif %};">
+                        {{ c.disk_pct }}%
+                    </span>
+                    {% else %}—{% endif %}
+                </td>
+                <td style="font-size: 11px; color: var(--text-dim);">{{ c.last_seen }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color: var(--text-dim); font-size: 13px;">
+            Žádné online počítače. Synchronizujte data z Promethea tlačítkem výše,
+            nebo importujte počítače přes <code>dm import computers</code>.
+        </p>
+        {% endif %}
+
+        <div style="margin-top: 12px;">
+            <a href="/computers" style="color: var(--accent); font-size: 13px;">
+                → Všechny počítače ({{ computer_count }})
+            </a>
+        </div>
+    </div>
+
+    <!-- Rychlé akce -->
+    <div class="card">
+        <h2 style="font-size: 15px; margin-bottom: 12px;">Rychlé akce</h2>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <a href="/computers" class="btn btn-secondary" style="font-size: 13px;">Správa počítačů</a>
+            <a href="/users" class="btn btn-secondary" style="font-size: 13px;">Správa uživatelů</a>
+            <a href="/groups" class="btn btn-secondary" style="font-size: 13px;">Skupiny</a>
+            <a href="/dhcp" class="btn btn-secondary" style="font-size: 13px;">DHCP rezervace</a>
+            <a href="/ansible" class="btn btn-secondary" style="font-size: 13px;">Ansible</a>
+            <a href="/policies" class="btn btn-secondary" style="font-size: 13px;">Politiky</a>
+        </div>
+    </div>
+</div>
+
+<!-- Pravý sloupec -->
+<div>
+    <!-- Stav služeb -->
+    <div class="card">
+        <h2 style="font-size: 15px; margin-bottom: 12px;">Monitoring</h2>
+        <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px;">
+            <a href="{{ grafana_url }}" target="_blank" style="color: var(--accent); display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 18px;">📊</span>
+                Grafana dashboardy
+                <span style="color: var(--text-dim); font-size: 11px;">↗ {{ grafana_url }}</span>
+            </a>
+            <a href="{{ prometheus_url }}" target="_blank" style="color: var(--accent); display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 18px;">🔥</span>
+                Prometheus
+                <span style="color: var(--text-dim); font-size: 11px;">↗ {{ prometheus_url }}</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Doména info -->
+    <div class="card">
+        <h2 style="font-size: 15px; margin-bottom: 12px;">Doména</h2>
+        <div style="display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 12px;">
+            <span style="color: var(--text-dim);">Realm</span>
+            <span style="font-family: monospace;">{{ request.app.state.config.domain.realm }}</span>
+            <span style="color: var(--text-dim);">DC1</span>
+            <span>{{ request.app.state.config.servers.dc1.hostname }} ({{ request.app.state.config.servers.dc1.ip }})</span>
+            <span style="color: var(--text-dim);">DC2</span>
+            <span>{{ request.app.state.config.servers.dc2.hostname }} ({{ request.app.state.config.servers.dc2.ip }})</span>
+            <span style="color: var(--text-dim);">Síť</span>
+            <span>{{ request.app.state.config.network.subnet }}</span>
+        </div>
+    </div>
+</div>
+
+</div>
+{% endblock %}

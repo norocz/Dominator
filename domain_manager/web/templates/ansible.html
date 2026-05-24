@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}Ansible — Domain Manager{% endblock %}
+
+{% block head_extra %}
+<style>
+.playbook-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+}
+.playbook-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.playbook-name {
+    font-weight: 600;
+    font-size: 15px;
+    word-break: break-all;
+}
+.playbook-form {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.playbook-form select {
+    flex: 1;
+    padding: 6px 10px;
+    font-size: 13px;
+    width: auto;
+}
+.playbook-form button {
+    padding: 6px 14px;
+    font-size: 13px;
+    white-space: nowrap;
+}
+.job-status-running { color: var(--accent); }
+.job-status-success { color: var(--success); }
+.job-status-failed  { color: var(--danger); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+    <h1 style="margin:0;">Ansible</h1>
+    <a href="/ansible/playbooks/new" class="btn">+ Nový playbook</a>
+</div>
+
+{% if demo_mode %}
+<div class="card" style="border-left: 3px solid var(--warning); padding: 12px 16px; margin-bottom: 20px;">
+    <strong style="color: var(--warning);">Demo režim</strong> —
+    kliknutím na Spustit se zobrazí simulovaný výstup playbooku.
+    Žádný ansible-playbook se nespustí.
+</div>
+{% endif %}
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start;">
+
+<!-- Levý panel: playbook list -->
+<div>
+    <h2 style="margin-bottom: 16px;">Playboky
+        <span style="color: var(--text-dim); font-size: 13px; font-weight: 400;">
+            ({{ playbooks | length }})
+        </span>
+    </h2>
+
+    {% if not playbooks %}
+    <div class="card">
+        <div style="color: var(--text-dim);">
+            Žádné playboky nenalezeny.<br>
+            Umístěte <code>.yml</code> soubory do:<br>
+            <code>{{ request.app.state.config.ansible.playbooks_path }}</code>
+        </div>
+    </div>
+    {% else %}
+    <div class="playbook-grid">
+    {% for play in playbooks %}
+    <div class="playbook-card">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:8px;">
+            <div class="playbook-name">{{ play }}</div>
+            <a href="/ansible/playbooks/{{ play }}/edit"
+               class="btn btn-secondary"
+               style="padding:3px 9px; font-size:12px; white-space:nowrap; flex-shrink:0;">✏ Upravit</a>
+        </div>
+        <form method="post" action="/ansible/run" class="playbook-form">
+            <input type="hidden" name="playbook" value="{{ play }}">
+            <select name="limit" title="Limit hostů">
+                {% for g in groups %}
+                <option value="{{ g }}">{{ g }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit">▶ Spustit</button>
+        </form>
+    </div>
+    {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Pravý panel: recent jobs -->
+<div>
+    <h2 style="margin-bottom: 16px;">Poslední joby
+        <span style="color: var(--text-dim); font-size: 13px; font-weight: 400;">
+            ({{ jobs | length }})
+        </span>
+    </h2>
+
+    {% if not jobs %}
+    <div class="card">
+        <div style="color: var(--text-dim);">Žádné joby zatím nebyly spuštěny.</div>
+    </div>
+    {% else %}
+    <div class="card" style="padding: 0; overflow: hidden;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Job</th>
+                    <th>Playbook</th>
+                    <th>Limit</th>
+                    <th>Status</th>
+                    <th>Čas</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for job in jobs %}
+            <tr>
+                <td>
+                    <a href="/ansible/jobs/{{ job.id }}" style="color: var(--accent); font-family: monospace;">
+                        #{{ job.id }}
+                    </a>
+                </td>
+                <td style="font-size: 12px;">{{ job.playbook }}</td>
+                <td style="font-size: 12px;">{{ job.limit }}</td>
+                <td>
+                    <span class="badge {{ job.status }}">{{ job.status }}</span>
+                    {% if not job.is_done %}
+                    <span style="color: var(--text-dim); font-size: 11px; margin-left: 4px;">
+                        {{ job.line_count }} řádků
+                    </span>
+                    {% endif %}
+                </td>
+                <td style="font-size: 12px; color: var(--text-dim);">
+                    {{ job.started_at }}
+                    {% if job.duration %}<br><span style="color: var(--text-dim);">{{ job.duration }}</span>{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+
+</div><!-- /grid -->
+{% endblock %}

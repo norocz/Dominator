@@ -1,0 +1,68 @@
+---
+# Nastavení PostgreSQL hot standby na DC2.
+# Předpoklady:
+#   - PostgreSQL nainstalován na obou DC (dc1=primary, dc2=standby)
+#   - Proměnné: pg_replication_password (viz config.yaml postgres.replication_password)
+- name: PostgreSQL hot standby setup
+  hosts: dc2
+  become: true
+  vars:
+    pg_primary_ip: "{{ hostvars[groups['dc1'][0]]['ansible_default_ipv4']['address'] }}"
+    pg_replication_user: repluser
+    pg_replication_password: "{{ lookup('env', 'DM_PG_REPL_PASS') }}"
+    pg_version: 16
+    pg_data: /var/lib/postgresql/{{ pg_version }}/main
+    pg_conf: /etc/postgresql/{{ pg_version }}/main
+
+  tasks:
+    - name: Zastavit PostgreSQL na DC2
+      service:
+        name: postgresql
+        state: stopped
+
+    - name: Smazat stávající data adresář na DC2
+      file:
+        path: "{{ pg_data }}"
+        state: absent
+
+    - name: Replikovat data z primary pomocí pg_basebackup
+      command: >
+        pg_basebackup -h {{ pg_primary_ip }} -U {{ pg_replication_user }}
+        -D {{ pg_data }} -Fp -Xs -R -P
+      become_user: postgres
+      environment:
+        PGPASSWORD: "{{ pg_replication_password }}"
+
+    - name: Nastavit recovery konfigurace (PostgreSQL 12+)
+      copy:
+        dest: "{{ pg_data }}/standby.signal"
+        content: ""
+        owner: postgres
+        mode: "0600"
+
+    - name: Nastavit primary_conninfo v postgresql.auto.conf
+      blockinfile:
+        path: "{{ pg_data }}/postgresql.auto.conf"
+        block: |
+          primary_conninfo = 'host={{ pg_primary_ip }} user={{ pg_replication_user }} password={{ pg_replication_password }}'
+          hot_standby = on
+        owner: postgres
+
+    - name: Spustit PostgreSQL standby
+      service:
+        name: postgresql
+        state: started
+        enabled: true
+
+    - name: Ověřit replikaci (počkat na standby)
+      wait_for:
+        timeout: 30
+
+    - name: Zkontrolovat stav replikace
+      become_user: postgres
+      command: psql -c "SELECT pg_is_in_recovery();"
+      register: recovery_check
+
+    - name: Výsledek
+      debug:
+        msg: "Standby aktivní: {{ recovery_check.stdout }}"

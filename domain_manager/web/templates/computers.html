@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}Počítače - Domain Manager{% endblock %}
+{% block head_extra %}
+<style>
+    .toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+    .toolbar input.search { width: 280px; }
+    .toolbar select, .toolbar input { padding: 6px 10px; font-size: 13px; }
+    .chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        background: var(--surface); border: 1px solid var(--border);
+        padding: 4px 10px; border-radius: 14px; font-size: 12px;
+    }
+    .chip a { color: var(--text-dim); text-decoration: none; }
+    .chip a:hover { color: var(--danger); }
+    .facet-group { display: flex; flex-direction: column; gap: 4px; min-width: 140px; }
+    .facet-group label { color: var(--text-dim); font-size: 11px; text-transform: uppercase; }
+
+    table.data { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table.data th { white-space: nowrap; cursor: pointer; user-select: none; position: relative; }
+    table.data th .sort-arrow { color: var(--accent); margin-left: 4px; }
+    table.data tr:hover td { background: rgba(255,255,255,0.02); }
+    table.data td { vertical-align: middle; }
+    table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    .col-toggle {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: 6px; padding: 12px; max-height: 320px; overflow-y: auto;
+        display: none; position: absolute; right: 0; top: 100%; z-index: 10;
+        min-width: 240px;
+    }
+    .col-toggle.open { display: block; }
+    .col-toggle label { display: block; padding: 4px 0; cursor: pointer; }
+
+    .pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 12px; }
+    .pager .info { color: var(--text-dim); font-size: 13px; margin-right: auto; }
+</style>
+{% endblock %}
+{% block content %}
+<div style="display:flex; align-items:center; gap:12px; margin-bottom:8px; flex-wrap:wrap;">
+    <h1 style="margin:0;">Počítače</h1>
+    <div style="flex:1"></div>
+    <button type="button" onclick="document.getElementById('comp-csv-panel').classList.toggle('open')"
+        style="font-size:13px; padding:6px 14px; background:var(--border); color:var(--text);">
+        &#x2191; Import CSV
+    </button>
+</div>
+<p style="color: var(--text-dim); margin-top: 0;">
+    Inventář domény. Filtrujte přes hledání, rozbalovací volby nebo kliknutí na sloupec pro řazení.
+</p>
+
+<style>#comp-csv-panel{display:none}#comp-csv-panel.open{display:block}</style>
+<div id="comp-csv-panel" class="card" style="margin-bottom:16px; padding:16px 20px;">
+    <div style="font-size:14px; font-weight:600; margin-bottom:8px;">Import počítačů z CSV</div>
+    <div id="csv-result"></div>
+    <form hx-post="/computers/import-csv" hx-target="#csv-result" hx-swap="innerHTML" hx-encoding="multipart/form-data">
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:8px;">
+            <input type="file" name="file" accept=".csv,.txt" required
+                style="width:auto; background:transparent; border:none; padding:0; font-size:13px;">
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; white-space:nowrap;">
+                <input type="checkbox" name="sync_ad" value="1" style="width:auto;">
+                Vytvořit i v AD
+            </label>
+            <button type="submit" style="padding:6px 18px;">Importovat</button>
+        </div>
+    </form>
+    <p style="font-size:11px; color:var(--text-dim); margin:0;">
+        Povinný sloupec: <code>hostname</code>. Volitelné: <code>mac</code>, <code>ip</code>,
+        <code>department</code>, <code>location</code>, <code>building</code>, <code>floor</code>,
+        <code>room</code>, <code>asset_tag</code>, <code>serial_number</code>, <code>manufacturer</code>,
+        <code>model</code>, <code>os_family</code>, <code>primary_user</code>, <code>warranty_until</code>
+        (YYYY-MM-DD), <code>purchase_date</code> (YYYY-MM-DD).
+        Existující záznamy se aktualizují.
+    </p>
+</div>
+
+<form id="filter-form"
+      hx-get="/computers/table"
+      hx-target="#table-slot"
+      hx-trigger="change, keyup delay:300ms from:input.search, submit"
+      hx-push-url="true">
+
+    <div class="toolbar">
+        <input class="search" name="q"
+               value="{{ request.query_params.get('q', '') }}"
+               placeholder="Hledat hostname, S/N, IP, MAC, uživatele…">
+
+        <div class="facet-group">
+            <label for="f-os">OS rodina</label>
+            <select id="f-os" name="os_family">
+                <option value="">— vše —</option>
+                {% for v in facets.os_family %}
+                <option value="{{ v }}" {% if request.query_params.get('os_family') == v %}selected{% endif %}>{{ v }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="facet-group">
+            <label for="f-dept">Oddělení</label>
+            <select id="f-dept" name="department">
+                <option value="">— vše —</option>
+                {% for v in facets.department %}
+                <option value="{{ v }}" {% if request.query_params.get('department') == v %}selected{% endif %}>{{ v }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="facet-group">
+            <label for="f-bld">Budova</label>
+            <select id="f-bld" name="building">
+                <option value="">— vše —</option>
+                {% for v in facets.building %}
+                <option value="{{ v }}" {% if request.query_params.get('building') == v %}selected{% endif %}>{{ v }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="facet-group">
+            <label for="f-ff">Typ</label>
+            <select id="f-ff" name="form_factor">
+                <option value="">— vše —</option>
+                {% for v in facets.form_factor %}
+                <option value="{{ v }}" {% if request.query_params.get('form_factor') == v %}selected{% endif %}>{{ v }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="facet-group">
+            <label for="f-st">Stav</label>
+            <select id="f-st" name="status">
+                <option value="">— vše —</option>
+                {% for v in facets.status %}
+                <option value="{{ v }}" {% if request.query_params.get('status') == v %}selected{% endif %}>{{ v }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="facet-group">
+            <label for="f-on">Pouze online</label>
+            <select id="f-on" name="is_online">
+                <option value="">— vše —</option>
+                <option value="true"  {% if request.query_params.get('is_online') == 'true' %}selected{% endif %}>Online</option>
+                <option value="false" {% if request.query_params.get('is_online') == 'false' %}selected{% endif %}>Offline</option>
+            </select>
+        </div>
+
+        <div class="facet-group">
+            <label for="f-ram">RAM od (MB)</label>
+            <input id="f-ram" name="ram_mb__ge" type="number" min="0" step="1024"
+                   value="{{ request.query_params.get('ram_mb__ge', '') }}"
+                   style="width: 110px;">
+        </div>
+
+        <div style="flex: 1;"></div>
+
+        <div style="position: relative;">
+            <button type="button" onclick="document.getElementById('col-toggle').classList.toggle('open')">
+                Sloupce
+            </button>
+            <div id="col-toggle" class="col-toggle">
+                {% for key, label in all_columns.items() %}
+                <label>
+                    <input type="checkbox" name="cols_pick" value="{{ key }}"
+                           {% if key in active_columns %}checked{% endif %}
+                           onchange="updateColsParam()">
+                    {{ label }}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Skrytý input s aktuální sadou sloupců, formulář ho posílá v query -->
+    <input type="hidden" name="cols" id="cols-input"
+           value="{{ active_columns | join(',') }}">
+    <!-- Skrytý input pro řazení (mění se klikáním na hlavičky) -->
+    <input type="hidden" name="sort" id="sort-input"
+           value="{{ request.query_params.get('sort', '') }}">
+</form>
+
+<div id="table-slot"
+     hx-get="/computers/table{{ '?' + request.url.query if request.url.query else '' }}"
+     hx-trigger="load"
+     hx-swap="innerHTML">
+    <div style="color: var(--text-dim); padding: 24px;">Načítám…</div>
+</div>
+
+<script>
+function updateColsParam() {
+    const picked = Array.from(document.querySelectorAll('input[name="cols_pick"]:checked'))
+        .map(el => el.value);
+    document.getElementById('cols-input').value = picked.join(',');
+    htmx.trigger('#filter-form', 'change');
+}
+
+// Klik na hlavičku tabulky → mění sort input. Vlastní handler je v tabulkové šabloně.
+window.applySort = function(field) {
+    const sortInput = document.getElementById('sort-input');
+    const current = sortInput.value;
+    if (current === field) sortInput.value = '-' + field;
+    else if (current === '-' + field) sortInput.value = '';
+    else sortInput.value = field;
+    htmx.trigger('#filter-form', 'change');
+};
+</script>
+{% endblock %}

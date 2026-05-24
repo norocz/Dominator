@@ -1,0 +1,28 @@
+{% if not job.is_done %}
+<div id="job-output"
+     hx-get="/ansible/jobs/{{ job.id }}/output"
+     hx-trigger="every 2s"
+     hx-swap="outerHTML">
+{% else %}
+<div id="job-output">
+{% endif %}
+
+<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+    <span class="badge {{ job.status }}">
+        {% if not job.is_done %}⟳ {% endif %}{{ job.status }}
+    </span>
+    <span style="color: var(--text-dim); font-size: 12px;">
+        {{ job.line_count }} řádků
+        {% if job.duration %} · {{ job.duration }}{% endif %}
+    </span>
+    {% if not job.is_done %}
+    <span style="color: var(--text-dim); font-size: 11px;">obnovuje se každé 2s…</span>
+    {% endif %}
+</div>
+
+<pre style="background: #0d0f12; border: 1px solid var(--border); border-radius: 6px;
+           padding: 16px; overflow: auto; max-height: 600px; font-size: 12px;
+           line-height: 1.5; color: #c9d1d9; white-space: pre-wrap; word-break: break-all;">{% for line in output %}{{ line }}
+{% endfor %}{% if not job.is_done %}<span style="color: var(--accent);">▌</span>{% endif %}</pre>
+
+</div>

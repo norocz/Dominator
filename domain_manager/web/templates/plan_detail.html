@@ -1,0 +1,730 @@
+{% extends "base.html" %}
+{% block title %}{{ p.name }} — Plánky{% endblock %}
+
+{% block head_extra %}
+<style>
+/* ── Layout ─────────────────────────────────────────── */
+.plan-layout {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+}
+.plan-canvas-wrap {
+    flex: 1;
+    min-width: 0;
+    position: relative;
+}
+.plan-sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* ── Canvas ─────────────────────────────────────────── */
+#plan-canvas {
+    position: relative;
+    display: inline-block;
+    cursor: crosshair;
+    user-select: none;
+    -webkit-user-select: none;
+}
+#plan-canvas img, #plan-canvas object {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+    pointer-events: none;
+}
+#plan-canvas.drag-over {
+    outline: 2px dashed var(--accent);
+    outline-offset: 2px;
+}
+
+/* ── Device icons on canvas ─────────────────────────── */
+.device-pin {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    cursor: grab;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+.device-pin:active { cursor: grabbing; }
+.device-pin .pin-icon {
+    font-size: 22px;
+    line-height: 1;
+    filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8));
+    transition: transform 0.1s;
+}
+.device-pin:hover .pin-icon { transform: scale(1.2); }
+.device-pin .pin-label {
+    background: rgba(26,29,35,0.88);
+    color: var(--text);
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    white-space: nowrap;
+    max-width: 90px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+    border: 1px solid var(--border);
+}
+.device-pin.online  .pin-icon { filter: drop-shadow(0 0 6px rgba(16,185,129,0.8)); }
+.device-pin.offline .pin-icon { filter: drop-shadow(0 0 6px rgba(239,68,68,0.5)) grayscale(0.6); }
+
+/* ── Info panel (click-to-open) ──────────────────────── */
+.pin-tooltip {
+    position: fixed;
+    z-index: 9999;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px 10px;
+    font-size: 12px;
+    min-width: 190px;
+    max-width: 230px;
+    pointer-events: auto;
+    cursor: default;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+    display: none;
+}
+.pin-tooltip .tt-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.pin-tooltip .tt-name { font-weight: 600; font-size: 13px; }
+.pin-tooltip .tt-close {
+    width: 20px; height: 20px; border-radius: 4px;
+    border: none; background: none; cursor: pointer;
+    color: var(--text-dim); font-size: 14px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.pin-tooltip .tt-close:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+.pin-tooltip .tt-row { display: flex; justify-content: space-between; gap: 16px; color: var(--text-dim); padding: 2px 0; }
+.pin-tooltip .tt-val { color: var(--text); }
+.tt-bar { height: 4px; border-radius: 2px; background: var(--border); margin-top: 6px; overflow: hidden; }
+.tt-bar-inner { height: 100%; border-radius: 2px; transition: width 0.3s; }
+
+/* ── Sidebar ─────────────────────────────────────────── */
+.sidebar-section { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+.sidebar-section h3 { margin: 0; padding: 10px 14px; font-size: 13px; color: var(--text-dim); font-weight: 500; border-bottom: 1px solid var(--border); }
+.sidebar-body { padding: 8px; }
+
+.unplaced-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 8px;
+    border-radius: 6px;
+    cursor: grab;
+    font-size: 13px;
+    border: 1px solid transparent;
+    transition: background 0.1s, border-color 0.1s;
+}
+.unplaced-item:hover { background: rgba(74,158,255,0.08); border-color: var(--accent); }
+.unplaced-item:active { cursor: grabbing; }
+.unplaced-item .ui-icon { font-size: 18px; }
+.unplaced-item .ui-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.unplaced-item .ui-status { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.unplaced-item .ui-status.online  { background: var(--success); }
+.unplaced-item .ui-status.offline { background: var(--danger); }
+
+.icon-select { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; }
+.icon-btn {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-dim);
+    transition: border-color 0.1s, background 0.1s;
+}
+.icon-btn:hover { border-color: var(--accent); color: var(--text); }
+.icon-btn.active { border-color: var(--accent); background: rgba(74,158,255,0.12); color: var(--text); }
+
+/* ── Context menu ────────────────────────────────────── */
+#ctx-menu {
+    position: fixed;
+    z-index: 9998;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 0;
+    min-width: 150px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    display: none;
+    font-size: 13px;
+}
+#ctx-menu .ctx-item {
+    padding: 7px 16px;
+    cursor: pointer;
+    color: var(--text);
+}
+#ctx-menu .ctx-item:hover { background: rgba(255,255,255,0.05); }
+#ctx-menu .ctx-item.danger { color: var(--danger); }
+
+/* ── Nav breadcrumb ──────────────────────────────────── */
+.breadcrumb { font-size: 13px; color: var(--text-dim); margin-bottom: 16px; }
+.breadcrumb a { color: var(--text-dim); text-decoration: none; }
+.breadcrumb a:hover { color: var(--text); }
+.breadcrumb span { color: var(--text); }
+
+/* ── Related plans ───────────────────────────────────── */
+.related-plans { display: flex; flex-wrap: wrap; gap: 8px; }
+.related-plan {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    text-decoration: none;
+    color: var(--text-dim);
+    font-size: 12px;
+    transition: border-color 0.15s, color 0.15s;
+}
+.related-plan:hover { border-color: var(--accent); color: var(--text); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Breadcrumb -->
+<div class="breadcrumb">
+    <a href="/plans">Plánky</a>
+    {% if parent %}
+     / <a href="/plans/{{ parent.id }}">{{ parent.name }}</a>
+    {% endif %}
+     / <span>{{ p.name }}</span>
+</div>
+
+<!-- Header -->
+<div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:16px; gap:16px; flex-wrap:wrap;">
+    <div>
+        <h1 style="margin:0;">{{ p.name }}</h1>
+        <div style="font-size:13px; color:var(--text-dim); margin-top:4px;">
+            {{ p.width_px }}×{{ p.height_px }} px
+            · {{ placed|length }} zařízení umístěno
+            {% if placed %}, {{ placed|selectattr('is_online')|list|length }} online{% endif %}
+        </div>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <span id="save-status" style="display:flex; align-items:center; padding:0 8px; font-size:12px; color:var(--text-dim);"></span>
+        <a class="btn btn-secondary" href="/plans/{{ p.id }}/edit">Upravit</a>
+        <form method="post" action="/plans/{{ p.id }}/delete" style="display:inline;"
+              onsubmit="return confirm('Opravdu smazat plánek {{ p.name|e }}?')">
+            <button type="submit" class="btn btn-danger">Smazat</button>
+        </form>
+    </div>
+</div>
+
+<!-- Related navigation -->
+{% if siblings or children %}
+<div style="margin-bottom:14px;">
+    {% if siblings %}
+    <div style="margin-bottom:8px;">
+        <span style="font-size:12px; color:var(--text-dim); margin-right:8px;">Sourozenci:</span>
+        <div class="related-plans" style="display:inline-flex;">
+            {% for s in siblings %}<a class="related-plan" href="/plans/{{ s.id }}">🗺 {{ s.name }}</a>{% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% if children %}
+    <div>
+        <span style="font-size:12px; color:var(--text-dim); margin-right:8px;">Pod-plánky:</span>
+        <div class="related-plans" style="display:inline-flex;">
+            {% for c in children %}<a class="related-plan" href="/plans/{{ c.id }}">📄 {{ c.name }}</a>{% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Main layout -->
+<div class="plan-layout">
+
+    <!-- Canvas -->
+    <div class="plan-canvas-wrap">
+        <div id="plan-canvas"
+             data-plan-id="{{ p.id }}"
+             data-orig-w="{{ p.width_px }}"
+             data-orig-h="{{ p.height_px }}"
+             ondragover="event.preventDefault(); this.classList.add('drag-over')"
+             ondragleave="this.classList.remove('drag-over')"
+             ondrop="handleDrop(event)">
+
+            {% if p.image_url %}
+            <img id="plan-img" src="{{ p.image_url }}" alt="{{ p.name }}"
+                 style="width:100%; height:auto; display:block;">
+            {% else %}
+            <div id="plan-img" style="width:100%; aspect-ratio:{{ p.width_px }}/{{ p.height_px }};
+                 background:var(--surface); border:1px solid var(--border); border-radius:6px;
+                 display:flex; align-items:center; justify-content:center; color:var(--text-dim); font-size:18px;">
+                Žádný obrázek
+            </div>
+            {% endif %}
+
+            <!-- Placed devices -->
+            {% for d in placed %}
+            <div class="device-pin {{ 'online' if d.is_online else 'offline' }}"
+                 id="pin-{{ d.computer_id }}"
+                 data-cid="{{ d.computer_id }}"
+                 data-icon="{{ d.icon }}"
+                 data-hostname="{{ d.hostname }}"
+                 data-online="{{ '1' if d.is_online else '0' }}"
+                 data-cpu="{{ d.cpu_pct or '' }}"
+                 data-ram="{{ d.ram_pct or '' }}"
+                 data-disk="{{ d.disk_pct or '' }}"
+                 data-ip="{{ d.ip }}"
+                 data-dept="{{ d.department }}"
+                 data-internet="{{ '1' if d.internet_blocked else '0' }}"
+                 style="left:{{ d.x }}px; top:{{ d.y }}px;"
+                 onmousedown="pinMouseDown(event, this)"
+                 oncontextmenu="showCtxMenu(event, this)">
+                <span class="pin-icon">{{ d.icon_emoji }}</span>
+                <span class="pin-label">{{ d.hostname }}</span>
+            </div>
+            {% endfor %}
+        </div>
+
+        <p style="font-size:11px; color:var(--text-dim); margin-top:6px;">
+            Ze seznamu přetáhněte počítač na plánek.
+            Klik na ikonu = info &nbsp;·&nbsp; Podržet a táhnout = přesun &nbsp;·&nbsp; Pravý klik = možnosti
+        </p>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="plan-sidebar">
+
+        <!-- Icon picker -->
+        <div class="sidebar-section">
+            <h3>Typ ikony pro umístění</h3>
+            <div class="icon-select" id="icon-select">
+                {% for key, label in icon_labels.items() %}
+                <button class="icon-btn {% if loop.first %}active{% endif %}"
+                        data-icon="{{ key }}"
+                        onclick="selectIcon('{{ key }}', this)"
+                        title="{{ label }}">
+                    {{ icon_emoji[key] }} {{ label }}
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Unplaced computers -->
+        <div class="sidebar-section">
+            <h3>Nezařazené počítače ({{ unplaced|length }})</h3>
+            <div class="sidebar-body">
+                {% if unplaced %}
+                {% for c in unplaced %}
+                <div class="unplaced-item"
+                     draggable="true"
+                     data-cid="{{ c.id }}"
+                     data-icon="{{ c.icon }}"
+                     data-hostname="{{ c.hostname }}"
+                     data-online="{{ '1' if c.is_online else '0' }}"
+                     ondragstart="startSidebarDrag(event, this)">
+                    <span class="ui-icon">{{ c.icon_emoji }}</span>
+                    <span class="ui-name" title="{{ c.hostname }}">{{ c.hostname }}</span>
+                    {% if c.ip %}<span style="font-size:10px; color:var(--text-dim);">{{ c.ip }}</span>{% endif %}
+                    <span class="ui-status {{ 'online' if c.is_online else 'offline' }}"></span>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p style="font-size:12px; color:var(--text-dim); padding:8px 4px; margin:0;">
+                    Všechny počítače jsou umístěny.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Placed list -->
+        {% if placed %}
+        <div class="sidebar-section">
+            <h3>Umístěná zařízení ({{ placed|length }})</h3>
+            <div class="sidebar-body">
+                {% for d in placed %}
+                <div style="display:flex; align-items:center; gap:8px; padding:5px 4px; font-size:12px;">
+                    <span>{{ d.icon_emoji }}</span>
+                    <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ d.hostname }}</span>
+                    <span style="width:7px; height:7px; border-radius:50%; background:{{ 'var(--success)' if d.is_online else 'var(--danger)' }}; flex-shrink:0;"></span>
+                    <button class="btn btn-secondary"
+                            style="padding:2px 7px; font-size:11px;"
+                            hx-post="/plans/{{ p.id }}/positions/{{ d.computer_id }}/delete"
+                            hx-swap="none"
+                            hx-on::after-request="removePin({{ d.computer_id }})"
+                            title="Odebrat z plánku">✕</button>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+
+<!-- Info panel (click-to-open, stays open) -->
+<div class="pin-tooltip" id="pin-tooltip">
+    <div class="tt-header">
+        <span class="tt-name" id="tt-name"></span>
+        <button class="tt-close" onclick="hideInfoPanel()" title="Zavřít">✕</button>
+    </div>
+    <div class="tt-row"><span>IP</span><span class="tt-val" id="tt-ip"></span></div>
+    <div class="tt-row" id="tt-dept-row"><span>Oddělení</span><span class="tt-val" id="tt-dept"></span></div>
+    <div class="tt-row"><span>Stav</span><span class="tt-val" id="tt-status"></span></div>
+    <div id="tt-metrics" style="margin-top:8px; display:none;">
+        <div style="font-size:11px; color:var(--text-dim); margin-bottom:4px;">CPU / RAM / Disk</div>
+        <div style="display:flex; gap:6px;">
+            <div style="flex:1;"><div class="tt-bar"><div class="tt-bar-inner" id="tt-cpu" style="background:var(--accent);"></div></div></div>
+            <div style="flex:1;"><div class="tt-bar"><div class="tt-bar-inner" id="tt-ram" style="background:var(--warning);"></div></div></div>
+            <div style="flex:1;"><div class="tt-bar"><div class="tt-bar-inner" id="tt-disk" style="background:var(--success);"></div></div></div>
+        </div>
+        <div style="display:flex; gap:6px; margin-top:3px; font-size:10px; color:var(--text-dim); justify-content:space-around;">
+            <span id="tt-cpu-val"></span><span id="tt-ram-val"></span><span id="tt-disk-val"></span>
+        </div>
+    </div>
+    <div style="margin-top:10px; border-top:1px solid var(--border); padding-top:8px; display:flex; gap:8px;">
+        <button class="btn btn-secondary" style="flex:1; padding:4px 8px; font-size:11px;"
+                onclick="window.location='/computers/'+_infoPanelCid">Detail</button>
+    </div>
+</div>
+
+<!-- Context menu -->
+<div id="ctx-menu">
+    <div class="ctx-item" id="ctx-goto" onclick="ctxGoto()">Otevřít detail</div>
+    <div class="ctx-item danger" id="ctx-remove" onclick="ctxRemove()">Odebrat z plánku</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* ─── Constants ──────────────────────────────────────────────────────── */
+const PLAN_ID  = {{ p.id }};
+const ORIG_W   = {{ p.width_px }};
+const ORIG_H   = {{ p.height_px }};
+const DRAG_THRESHOLD = 6;   // px — pohyb menší než toto = klik, větší = drag
+
+const ICON_EMOJI = {
+    desktop: '🖥', laptop: '💻', server: '🖧',
+    printer: '🖨', ap: '📡',    camera: '📷', other: '📦',
+};
+
+/* ─── State ──────────────────────────────────────────────────────────── */
+let _dragPin      = null;   // pin, na který jsme klikli
+let _dragOfsX     = 0;
+let _dragOfsY     = 0;
+let _dragStartX   = 0;      // cursor pozice při mousedown
+let _dragStartY   = 0;
+let _isDragging   = false;  // překročen práh → táhneme
+
+let _sidebarDragCid    = null;
+let _sidebarDragIcon   = null;
+let _sidebarDragName   = null;
+let _sidebarDragOnline = false;
+
+let _selectedIcon  = "{{ unplaced[0].icon if unplaced else 'desktop' }}";
+let _ctxCid        = null;
+let _infoPanelCid       = null;  // potřebuje tlačítko "Detail" v panelu
+let _infoPanelJustShown = false; // zabrání okamžitému zavření po otevření
+
+/* ─── Scale helper ──────────────────────────────────────────────────── */
+function scale() {
+    const img = document.getElementById('plan-img');
+    return img ? img.offsetWidth / ORIG_W : 1;
+}
+function toOrig(sx, sy) {
+    const s = scale();
+    return { x: Math.round(sx / s), y: Math.round(sy / s) };
+}
+
+/* ─── Reposition all pins on load / resize ──────────────────────────── */
+function repositionAllPins() {
+    document.querySelectorAll('.device-pin').forEach(pin => {
+        if (!pin.dataset.ox) {
+            pin.dataset.ox = parseInt(pin.style.left);
+            pin.dataset.oy = parseInt(pin.style.top);
+        }
+        const s = scale();
+        pin.style.left = (parseInt(pin.dataset.ox) * s) + 'px';
+        pin.style.top  = (parseInt(pin.dataset.oy) * s) + 'px';
+    });
+}
+
+window.addEventListener('load', () => {
+    const img = document.getElementById('plan-img');
+    if (img) { img.complete ? repositionAllPins() : img.addEventListener('load', repositionAllPins); }
+});
+window.addEventListener('resize', repositionAllPins);
+
+/* ─── Pin interaction: mousedown ────────────────────────────────────── */
+function pinMouseDown(e, pin) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    hideInfoPanel();   // zavřít otevřený panel jiného pinu
+    hideCtxMenu();
+
+    _dragPin    = pin;
+    _dragStartX = e.clientX;
+    _dragStartY = e.clientY;
+    _isDragging = false;
+
+    const rect  = pin.getBoundingClientRect();
+    _dragOfsX   = e.clientX - rect.left;
+    _dragOfsY   = e.clientY - rect.top;
+
+    document.addEventListener('mousemove', onPinMouseMove);
+    document.addEventListener('mouseup',   onPinMouseUp);
+}
+
+function onPinMouseMove(e) {
+    if (!_dragPin) return;
+    const dx = e.clientX - _dragStartX;
+    const dy = e.clientY - _dragStartY;
+
+    if (!_isDragging) {
+        if (Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD) return;
+        // Práh překročen — přepnout do drag módu
+        _isDragging = true;
+        _dragPin.style.transition = 'none';
+        _dragPin.style.zIndex = 100;
+        _dragPin.style.cursor = 'grabbing';
+    }
+
+    const canvas = document.getElementById('plan-canvas');
+    const cr = canvas.getBoundingClientRect();
+    let sx = e.clientX - cr.left - _dragOfsX + _dragPin.offsetWidth  / 2;
+    let sy = e.clientY - cr.top  - _dragOfsY + _dragPin.offsetHeight / 2;
+    sx = Math.max(0, Math.min(canvas.offsetWidth,  sx));
+    sy = Math.max(0, Math.min(canvas.offsetHeight, sy));
+    _dragPin.style.left = sx + 'px';
+    _dragPin.style.top  = sy + 'px';
+}
+
+function onPinMouseUp(e) {
+    document.removeEventListener('mousemove', onPinMouseMove);
+    document.removeEventListener('mouseup',   onPinMouseUp);
+
+    if (!_dragPin) return;
+    const pin = _dragPin;
+    _dragPin = null;
+
+    if (_isDragging) {
+        // Dokončit přesun
+        pin.style.zIndex = 10;
+        pin.style.transition = '';
+        pin.style.cursor = '';
+        const orig = toOrig(parseFloat(pin.style.left), parseFloat(pin.style.top));
+        pin.dataset.ox = orig.x;
+        pin.dataset.oy = orig.y;
+        savePosition(parseInt(pin.dataset.cid), orig.x, orig.y, pin.dataset.icon);
+    } else {
+        // Byl to klik → otevřít info panel
+        showInfoPanel(pin);
+    }
+}
+
+/* ─── Sidebar drag & drop (HTML5 Drag API) ──────────────────────────── */
+function startSidebarDrag(e, el) {
+    _sidebarDragCid    = parseInt(el.dataset.cid);
+    _sidebarDragIcon   = el.dataset.icon;
+    _sidebarDragName   = el.dataset.hostname;
+    _sidebarDragOnline = el.dataset.online === '1';
+    e.dataTransfer.effectAllowed = 'copy';
+    e.dataTransfer.setData('text/plain', el.dataset.cid);
+}
+
+function handleDrop(e) {
+    e.preventDefault();
+    const canvas = document.getElementById('plan-canvas');
+    canvas.classList.remove('drag-over');
+    if (_sidebarDragCid === null) return;
+    const cr   = canvas.getBoundingClientRect();
+    const sx   = e.clientX - cr.left;
+    const sy   = e.clientY - cr.top;
+    const orig = toOrig(sx, sy);
+    const icon  = _selectedIcon || _sidebarDragIcon || 'desktop';
+    const emoji = ICON_EMOJI[icon] || '🖥';
+    addPin(_sidebarDragCid, _sidebarDragName, icon, emoji, sx, sy, orig.x, orig.y, _sidebarDragOnline);
+    savePosition(_sidebarDragCid, orig.x, orig.y, icon);
+    const item = document.querySelector('.unplaced-item[data-cid="' + _sidebarDragCid + '"]');
+    if (item) item.remove();
+    _sidebarDragCid = null;
+}
+
+function addPin(cid, hostname, icon, emoji, sx, sy, ox, oy, isOnline) {
+    const canvas = document.getElementById('plan-canvas');
+    const pin = document.createElement('div');
+    pin.className = 'device-pin ' + (isOnline ? 'online' : 'offline');
+    pin.id = 'pin-' + cid;
+    Object.assign(pin.dataset, { cid, icon, hostname, online: isOnline ? '1' : '0', ox, oy, cpu: '', ram: '', disk: '', ip: '', dept: '' });
+    pin.style.left = sx + 'px';
+    pin.style.top  = sy + 'px';
+    pin.innerHTML = '<span class="pin-icon">' + emoji + '</span>'
+                  + '<span class="pin-label">' + escHtml(hostname) + '</span>';
+    pin.onmousedown    = function(e) { pinMouseDown(e, pin); };
+    pin.oncontextmenu  = function(e) { showCtxMenu(e, pin); };
+    canvas.appendChild(pin);
+}
+
+/* ─── Save position ─────────────────────────────────────────────────── */
+function savePosition(cid, x, y, icon) {
+    const status = document.getElementById('save-status');
+    status.textContent = '…';
+    status.style.color = 'var(--text-dim)';
+    const body = new FormData();
+    body.append('computer_id', cid);
+    body.append('x', x); body.append('y', y); body.append('icon', icon);
+    fetch('/plans/' + PLAN_ID + '/positions', { method: 'POST', body })
+        .then(r => r.text())
+        .then(html => { status.innerHTML = html; setTimeout(() => { status.innerHTML = ''; }, 3000); })
+        .catch(() => { status.textContent = '⚠ chyba uložení'; status.style.color = 'var(--danger)'; });
+}
+
+/* ─── Remove pin ────────────────────────────────────────────────────── */
+function removePin(cid) {
+    hideInfoPanel();
+    const pin = document.getElementById('pin-' + cid);
+    if (!pin) return;
+    const hostname = pin.dataset.hostname;
+    const icon     = pin.dataset.icon;
+    const isOnline = pin.dataset.online === '1';
+    pin.remove();
+    addToSidebar(cid, hostname, icon, isOnline);
+}
+
+function addToSidebar(cid, hostname, icon, isOnline) {
+    const emoji = ICON_EMOJI[icon] || '🖥';
+    const sidebar = document.querySelector('.unplaced-item')?.parentElement
+                 || document.querySelector('.sidebar-body');
+    if (!sidebar) return;
+    const el = document.createElement('div');
+    el.className = 'unplaced-item';
+    el.draggable = true;
+    Object.assign(el.dataset, { cid, icon, hostname, online: isOnline ? '1' : '0' });
+    el.ondragstart = function(e) { startSidebarDrag(e, el); };
+    el.innerHTML = '<span class="ui-icon">' + emoji + '</span>'
+                 + '<span class="ui-name">' + escHtml(hostname) + '</span>'
+                 + '<span class="ui-status ' + (isOnline ? 'online' : 'offline') + '"></span>';
+    sidebar.appendChild(el);
+}
+
+/* ─── Icon selector ─────────────────────────────────────────────────── */
+function selectIcon(key, btn) {
+    document.querySelectorAll('.icon-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    _selectedIcon = key;
+}
+
+/* ─── Info panel (click-to-open, anchored near pin) ─────────────────── */
+const _infoPanel = document.getElementById('pin-tooltip');
+
+function showInfoPanel(pin) {
+    _infoPanelCid = parseInt(pin.dataset.cid);
+
+    document.getElementById('tt-name').textContent = pin.dataset.hostname;
+    document.getElementById('tt-ip').textContent   = pin.dataset.ip || '—';
+    const dept = pin.dataset.dept;
+    document.getElementById('tt-dept-row').style.display = dept ? '' : 'none';
+    document.getElementById('tt-dept').textContent = dept || '';
+    const online = pin.dataset.online === '1';
+    document.getElementById('tt-status').textContent  = online ? 'Online ✓' : 'Offline';
+    document.getElementById('tt-status').style.color  = online ? 'var(--success)' : 'var(--danger)';
+
+    const cpu = pin.dataset.cpu, ram = pin.dataset.ram, disk = pin.dataset.disk;
+    const hasMetrics = cpu !== '' || ram !== '' || disk !== '';
+    document.getElementById('tt-metrics').style.display = hasMetrics ? '' : 'none';
+    if (hasMetrics) {
+        setBar('tt-cpu', 'tt-cpu-val', cpu, 'CPU');
+        setBar('tt-ram', 'tt-ram-val', ram, 'RAM');
+        setBar('tt-disk', 'tt-disk-val', disk, 'Disk');
+    }
+
+    // Příznak: zamezit okamžitému zavření click eventem, který přijde těsně po mouseup
+    _infoPanelJustShown = true;
+
+    // Pozicovat panel vedle pinu (ne pod kurzorem)
+    _infoPanel.style.display = 'block';
+    const pr  = pin.getBoundingClientRect();
+    const pw  = _infoPanel.offsetWidth  || 200;
+    const ph  = _infoPanel.offsetHeight || 160;
+    let x = pr.right + 10;
+    let y = pr.top;
+    if (x + pw > window.innerWidth  - 8) x = pr.left - pw - 10;
+    if (y + ph > window.innerHeight - 8) y = window.innerHeight - ph - 8;
+    if (x < 4) x = 4;
+    _infoPanel.style.left = x + 'px';
+    _infoPanel.style.top  = y + 'px';
+}
+
+function hideInfoPanel() {
+    _infoPanel.style.display = 'none';
+    _infoPanelCid = null;
+}
+
+function setBar(barId, valId, val, label) {
+    const pct = parseFloat(val) || 0;
+    document.getElementById(barId).style.width = pct + '%';
+    document.getElementById(valId).textContent = label + ' ' + (val ? Math.round(pct) + '%' : '—');
+}
+
+/* ─── Context menu ──────────────────────────────────────────────────── */
+const _ctxMenu = document.getElementById('ctx-menu');
+
+function showCtxMenu(e, pin) {
+    e.preventDefault();
+    e.stopPropagation();
+    hideInfoPanel();
+    _ctxCid = parseInt(pin.dataset.cid);
+    _ctxMenu.style.display = 'block';
+    let x = e.clientX, y = e.clientY;
+    if (x + 160 > window.innerWidth)  x = window.innerWidth  - 170;
+    if (y + 80  > window.innerHeight) y = window.innerHeight - 90;
+    _ctxMenu.style.left = x + 'px';
+    _ctxMenu.style.top  = y + 'px';
+}
+
+function ctxGoto() {
+    if (_ctxCid) window.location = '/computers/' + _ctxCid;
+    hideCtxMenu();
+}
+
+function ctxRemove() {
+    if (!_ctxCid) return;
+    const cid = _ctxCid;
+    hideCtxMenu();
+    const body = new FormData();
+    fetch('/plans/' + PLAN_ID + '/positions/' + cid + '/delete', { method: 'POST', body })
+        .then(() => removePin(cid))
+        .catch(() => showToast('Chyba', 'Nepodařilo se odebrat zařízení.', 'error'));
+}
+
+function hideCtxMenu() {
+    _ctxMenu.style.display = 'none';
+    _ctxCid = null;
+}
+
+// Klik mimo panel nebo menu → zavřít oboje
+// (přeskočíme první click hned po otevření panelu — přišel by ze stejného mouseup)
+document.addEventListener('click', e => {
+    if (_infoPanelJustShown) { _infoPanelJustShown = false; return; }
+    if (!_infoPanel.contains(e.target)) hideInfoPanel();
+    if (!_ctxMenu.contains(e.target))   hideCtxMenu();
+});
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { hideInfoPanel(); hideCtxMenu(); }
+});
+
+/* ─── Util ──────────────────────────────────────────────────────────── */
+function escHtml(s) {
+    return String(s).replace(/[&<>"']/g, c =>
+        ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+}
+</script>
+{% endblock %}

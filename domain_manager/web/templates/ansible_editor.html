@@ -1,0 +1,770 @@
+{% extends "base.html" %}
+{% block title %}{{ filename or "Nový playbook" }} — Ansible editor{% endblock %}
+
+{% block head_extra %}
+<!-- CodeMirror 5 (lokální kopie — funguje i bez internetu) -->
+<link rel="stylesheet" href="/static/vendor/codemirror/codemirror.min.css">
+<link rel="stylesheet" href="/static/vendor/codemirror/theme/dracula.min.css">
+<link rel="stylesheet" href="/static/vendor/codemirror/addon/dialog/dialog.min.css">
+<script src="/static/vendor/codemirror/codemirror.min.js"></script>
+<script src="/static/vendor/codemirror/mode/yaml/yaml.min.js"></script>
+<script src="/static/vendor/codemirror/addon/edit/matchbrackets.min.js"></script>
+<script src="/static/vendor/codemirror/addon/edit/closebrackets.min.js"></script>
+<script src="/static/vendor/codemirror/addon/comment/comment.min.js"></script>
+<script src="/static/vendor/codemirror/addon/search/searchcursor.min.js"></script>
+<script src="/static/vendor/codemirror/addon/search/search.min.js"></script>
+<script src="/static/vendor/codemirror/addon/dialog/dialog.min.js"></script>
+<!-- js-yaml pro validaci (lokální kopie) -->
+<script src="/static/vendor/js-yaml.min.js"></script>
+
+<style>
+/* ── Layout ──────────────────────────────────────── */
+body { overflow: hidden; }   /* výška = viewport */
+main { padding: 0 !important; display: flex; flex-direction: column; height: calc(100vh - 52px); max-width: none !important; }
+{% if demo_mode %}main { height: calc(100vh - 52px - 30px); }{% endif %}
+
+.editor-topbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+.editor-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+.editor-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+}
+.editor-statusbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 12px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+}
+.editor-statusbar .status-ok    { color: var(--success); }
+.editor-statusbar .status-error { color: var(--danger); }
+
+/* ── CodeMirror override ─────────────────────────── */
+.CodeMirror {
+    flex: 1;
+    height: 100% !important;
+    font-size: 13px;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    line-height: 1.6;
+    background: #1e2128 !important;
+}
+.CodeMirror-scroll { height: 100% !important; }
+.cm-wrap { height: 100%; }
+
+/* ── Snippets sidebar ────────────────────────────── */
+.snippets-sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    overflow: hidden;
+}
+.snippets-header {
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+}
+.snippets-search {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+.snippets-search input {
+    width: 100%;
+    padding: 5px 8px;
+    font-size: 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text);
+}
+.snippets-list {
+    overflow-y: auto;
+    flex: 1;
+}
+.snip-cat {
+    padding: 6px 12px 3px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    background: rgba(0,0,0,0.15);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+.snip-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    transition: background 0.1s;
+}
+.snip-item:hover { background: rgba(74,158,255,0.1); }
+.snip-item:active { background: rgba(74,158,255,0.2); }
+.snip-name {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 2px;
+}
+.snip-desc {
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+/* ── Topbar prvky ────────────────────────────────── */
+.filename-input {
+    flex: 1;
+    min-width: 160px;
+    max-width: 300px;
+    font-family: monospace;
+    font-size: 13px;
+    padding: 5px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text);
+}
+.filename-input:focus { border-color: var(--accent); outline: none; }
+.kbd {
+    display: inline-block;
+    padding: 1px 5px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-size: 10px;
+    font-family: monospace;
+    color: var(--text-dim);
+}
+.save-flash {
+    color: var(--success);
+    font-size: 12px;
+    animation: fade-out 3s forwards;
+}
+@keyframes fade-out {
+    0%   { opacity: 1; }
+    70%  { opacity: 1; }
+    100% { opacity: 0; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Topbar -->
+<div class="editor-topbar">
+    <a href="/ansible" style="color:var(--text-dim); text-decoration:none; font-size:13px; white-space:nowrap;">← Ansible</a>
+
+    <form id="save-form" method="post" action="/ansible/playbooks/save"
+          style="display:contents;">
+        <input type="hidden" name="content" id="content-hidden">
+        <input class="filename-input" type="text" name="name" id="filename-input"
+               placeholder="nazev-playbooku.yml"
+               value="{{ filename }}"
+               required pattern="[a-zA-Z0-9_\-\.]+\.ya?ml">
+    </form>
+
+    <button class="btn" onclick="submitSave()" style="white-space:nowrap;">
+        💾 Uložit <span class="kbd">Ctrl+S</span>
+    </button>
+
+    {% if not is_new %}
+    <form method="post" action="/ansible/playbooks/{{ filename }}/delete" style="display:inline;"
+          onsubmit="return confirm('Smazat playbook {{ filename|e }}?')">
+        <button type="submit" class="btn btn-danger" style="padding:6px 12px; font-size:13px;">🗑 Smazat</button>
+    </form>
+    {% endif %}
+
+    {% if saved %}
+    <span class="save-flash">✓ Uloženo</span>
+    {% endif %}
+
+    <div style="flex:1;"></div>
+
+    <span style="font-size:11px; color:var(--text-dim);">
+        Kliknutím na snippet ho vložíte na pozici kurzoru
+    </span>
+</div>
+
+<!-- Editor + Sidebar -->
+<div class="editor-body">
+
+    <!-- CodeMirror pane -->
+    <div class="editor-pane">
+        <textarea id="editor-ta" style="display:none;">{{ content | e }}</textarea>
+        <!-- CodeMirror se napojí na textarea -->
+        <div id="cm-container" style="flex:1; display:flex; flex-direction:column; min-height:0;"></div>
+
+        <div class="editor-statusbar">
+            <span id="yaml-status" class="status-ok">✓ Platný YAML</span>
+            <span style="margin-left:auto;" id="cursor-pos">Řádek 1, Sloupec 1</span>
+            <span>YAML</span>
+            <span>UTF-8</span>
+            <span>2 mezery</span>
+        </div>
+    </div>
+
+    <!-- Snippets sidebar -->
+    <div class="snippets-sidebar">
+        <div class="snippets-header">
+            📋 Snippety
+            <span style="font-size:11px; font-weight:400; color:var(--text-dim);" id="snip-count"></span>
+        </div>
+        <div class="snippets-search">
+            <input type="text" id="snip-search" placeholder="Hledat snippet…" oninput="filterSnippets(this.value)">
+        </div>
+        <div class="snippets-list" id="snip-list"></div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* ─── CodeMirror init ───────────────────────────────────────────── */
+const ta = document.getElementById('editor-ta');
+const cmContainer = document.getElementById('cm-container');
+
+// Přesunout textarea do containeru (CM se napojí uvnitř)
+cmContainer.appendChild(ta);
+ta.style.display = '';
+
+const editor = CodeMirror.fromTextArea(ta, {
+    mode: 'yaml',
+    theme: 'dracula',
+    lineNumbers: true,
+    indentUnit: 2,
+    tabSize: 2,
+    indentWithTabs: false,
+    matchBrackets: true,
+    autoCloseBrackets: true,
+    lineWrapping: false,
+    autofocus: true,
+    extraKeys: {
+        'Tab':       cm => cm.execCommand('indentMore'),
+        'Shift-Tab': cm => cm.execCommand('indentLess'),
+        'Ctrl-/':    cm => cm.toggleComment({ indent: true }),
+        'Cmd-/':     cm => cm.toggleComment({ indent: true }),
+        'Ctrl-S':    () => submitSave(),
+        'Cmd-S':     () => submitSave(),
+        'Ctrl-F':    'findPersistent',
+    },
+});
+
+// Roztáhnout CM na celý container
+editor.getWrapperElement().style.cssText = 'flex:1; height:100%; display:flex; flex-direction:column;';
+editor.getScrollerElement().style.flex = '1';
+
+// Kurzor
+editor.on('cursorActivity', () => {
+    const c = editor.getCursor();
+    document.getElementById('cursor-pos').textContent =
+        `Řádek ${c.line + 1}, Sloupec ${c.ch + 1}`;
+});
+
+/* ─── YAML validace ─────────────────────────────────────────────── */
+const statusEl = document.getElementById('yaml-status');
+let _validTimer = null;
+
+editor.on('change', () => {
+    clearTimeout(_validTimer);
+    _validTimer = setTimeout(validateYaml, 600);
+});
+
+function validateYaml() {
+    try {
+        jsyaml.loadAll(editor.getValue());
+        statusEl.className = 'status-ok';
+        statusEl.textContent = '✓ Platný YAML';
+    } catch (e) {
+        statusEl.className = 'status-error';
+        // Zkrátit chybovou zprávu na první řádek
+        statusEl.textContent = '✗ ' + String(e.message).split('\n')[0].slice(0, 80);
+    }
+}
+validateYaml();
+
+/* ─── Uložení ───────────────────────────────────────────────────── */
+function submitSave() {
+    const name = document.getElementById('filename-input').value.trim();
+    if (!name) { alert('Zadejte název souboru (.yml)'); return; }
+    document.getElementById('content-hidden').value = editor.getValue();
+    // form.submit() neprobublá přes submit event — odeslat fetch aby demo interceptor nemusel
+    document.getElementById('save-form').submit();
+}
+
+/* ─── Snippety ──────────────────────────────────────────────────── */
+const SNIPPETS = [
+  // ── Základní struktura ───────────────────────────────────────
+  { cat: 'Základní struktura', name: 'Celý playbook', desc: 'Kompletní kostra s vars a tasks',
+    code: `---
+- name: Název playbooku
+  hosts: all
+  become: yes
+
+  vars:
+    example_var: hodnota
+
+  tasks:
+    - name: Hello world
+      ansible.builtin.debug:
+        msg: "Spouštím na {{ '{{' }} inventory_hostname {{ '}}' }}"
+`},
+  { cat: 'Základní struktura', name: 'Role include', desc: 'Import role ze složky roles/',
+    code: `  roles:
+    - role: moje_role
+      vars:
+        role_var: hodnota
+`},
+  { cat: 'Základní struktura', name: 'Import playbooku', desc: 'Vložit jiný playbook',
+    code: `- import_playbook: other_play.yml
+`},
+
+  // ── Správa balíčků ───────────────────────────────────────────
+  { cat: 'Správa balíčků', name: 'apt install', desc: 'Nainstalovat balíčky (Debian/Ubuntu)',
+    code: `    - name: Nainstalovat balíčky
+      ansible.builtin.apt:
+        name:
+          - curl
+          - git
+          - vim
+        state: present
+        update_cache: yes
+`},
+  { cat: 'Správa balíčků', name: 'apt remove', desc: 'Odebrat balíčky',
+    code: `    - name: Odebrat balíčky
+      ansible.builtin.apt:
+        name: nazev-balicku
+        state: absent
+        purge: yes
+`},
+  { cat: 'Správa balíčků', name: 'apt upgrade', desc: 'Aktualizovat všechny balíčky',
+    code: `    - name: Aktualizovat systém
+      ansible.builtin.apt:
+        upgrade: dist
+        update_cache: yes
+        cache_valid_time: 3600
+`},
+  { cat: 'Správa balíčků', name: 'pip install', desc: 'Python balíčky přes pip',
+    code: `    - name: Instalovat Python balíčky
+      ansible.builtin.pip:
+        name:
+          - requests
+          - flask
+        state: present
+        virtualenv: /opt/app/venv
+`},
+
+  // ── Soubory a šablony ─────────────────────────────────────────
+  { cat: 'Soubory a šablony', name: 'copy', desc: 'Zkopírovat soubor na server',
+    code: `    - name: Zkopírovat soubor
+      ansible.builtin.copy:
+        src: files/config.conf
+        dest: /etc/app/config.conf
+        owner: root
+        group: root
+        mode: '0644'
+        backup: yes
+`},
+  { cat: 'Soubory a šablony', name: 'template', desc: 'Nasadit Jinja2 šablonu',
+    code: `    - name: Nasadit konfiguraci z šablony
+      ansible.builtin.template:
+        src: templates/config.j2
+        dest: /etc/app/config.conf
+        owner: root
+        group: root
+        mode: '0640'
+      notify: restart app
+`},
+  { cat: 'Soubory a šablony', name: 'file mkdir', desc: 'Vytvořit adresář',
+    code: `    - name: Vytvořit adresář
+      ansible.builtin.file:
+        path: /opt/app/data
+        state: directory
+        owner: app
+        group: app
+        mode: '0755'
+`},
+  { cat: 'Soubory a šablony', name: 'file symlink', desc: 'Symbolický odkaz',
+    code: `    - name: Vytvořit symlink
+      ansible.builtin.file:
+        src: /opt/app/current
+        dest: /usr/local/bin/app
+        state: link
+`},
+  { cat: 'Soubory a šablony', name: 'lineinfile', desc: 'Upravit jeden řádek v souboru',
+    code: `    - name: Nastavit parametr v konfiguračním souboru
+      ansible.builtin.lineinfile:
+        path: /etc/app/config.ini
+        regexp: '^max_connections'
+        line: 'max_connections = 200'
+        backup: yes
+`},
+  { cat: 'Soubory a šablony', name: 'blockinfile', desc: 'Vložit blok textu do souboru',
+    code: `    - name: Vložit blok konfigurace
+      ansible.builtin.blockinfile:
+        path: /etc/app/config.conf
+        block: |
+          # Managed by Ansible
+          option1 = value1
+          option2 = value2
+        marker: "# {mark} ANSIBLE MANAGED BLOCK"
+        backup: yes
+`},
+  { cat: 'Soubory a šablony', name: 'fetch', desc: 'Stáhnout soubor ze serveru',
+    code: `    - name: Stáhnout log ze serveru
+      ansible.builtin.fetch:
+        src: /var/log/app/error.log
+        dest: logs/{{ '{{' }} inventory_hostname {{ '}}' }}/
+        flat: no
+`},
+
+  // ── Systémové služby ──────────────────────────────────────────
+  { cat: 'Systémové služby', name: 'systemd start', desc: 'Spustit a zapnout službu',
+    code: `    - name: Spustit a zapnout službu
+      ansible.builtin.systemd:
+        name: nginx
+        state: started
+        enabled: yes
+        daemon_reload: yes
+`},
+  { cat: 'Systémové služby', name: 'systemd restart', desc: 'Restartovat službu',
+    code: `    - name: Restartovat službu
+      ansible.builtin.systemd:
+        name: nginx
+        state: restarted
+        daemon_reload: yes
+`},
+  { cat: 'Systémové služby', name: 'handler restart', desc: 'Handler pro restart po změně',
+    code: `  handlers:
+    - name: restart nginx
+      ansible.builtin.systemd:
+        name: nginx
+        state: restarted
+
+    - name: reload nginx
+      ansible.builtin.systemd:
+        name: nginx
+        state: reloaded
+`},
+  { cat: 'Systémové služby', name: 'cron', desc: 'Plánovaný úkol (cron job)',
+    code: `    - name: Nastavit zálohovací cron
+      ansible.builtin.cron:
+        name: "Noční záloha"
+        minute: "0"
+        hour: "2"
+        weekday: "*"
+        job: "/opt/backup.sh >> /var/log/backup.log 2>&1"
+        user: root
+        state: present
+`},
+
+  // ── Uživatelé a skupiny ───────────────────────────────────────
+  { cat: 'Uživatelé a skupiny', name: 'user create', desc: 'Vytvořit systémového uživatele',
+    code: `    - name: Vytvořit uživatele
+      ansible.builtin.user:
+        name: appuser
+        comment: "Aplikační uživatel"
+        shell: /bin/bash
+        groups:
+          - sudo
+          - docker
+        append: yes
+        create_home: yes
+        password: "{{ '{{' }} user_password | password_hash('sha512') {{ '}}' }}"
+`},
+  { cat: 'Uživatelé a skupiny', name: 'authorized_key', desc: 'Přidat SSH klíč',
+    code: `    - name: Přidat SSH authorized key
+      ansible.posix.authorized_key:
+        user: deploy
+        state: present
+        key: "{{ '{{' }} lookup('file', 'files/id_rsa.pub') {{ '}}' }}"
+`},
+  { cat: 'Uživatelé a skupiny', name: 'group', desc: 'Vytvořit skupinu',
+    code: `    - name: Vytvořit skupinu
+      ansible.builtin.group:
+        name: appgroup
+        gid: 1500
+        state: present
+`},
+
+  // ── Příkazy a shell ───────────────────────────────────────────
+  { cat: 'Příkazy a shell', name: 'command', desc: 'Spustit příkaz (bez shellu)',
+    code: `    - name: Spustit příkaz
+      ansible.builtin.command:
+        cmd: /usr/bin/app --config /etc/app/config.conf
+        chdir: /opt/app
+      register: cmd_result
+      changed_when: "'Changed' in cmd_result.stdout"
+`},
+  { cat: 'Příkazy a shell', name: 'shell', desc: 'Shell příkaz (pipes, redirecty)',
+    code: `    - name: Shell příkaz s rourou
+      ansible.builtin.shell: |
+        echo "Host: {{ '{{' }} inventory_hostname {{ '}}' }}" | tee /tmp/test.txt
+        cat /tmp/test.txt
+      args:
+        executable: /bin/bash
+      register: shell_out
+`},
+  { cat: 'Příkazy a shell', name: 'debug register', desc: 'Vypsat výstup předchozího tasku',
+    code: `    - name: Zobrazit výstup předchozího příkazu
+      ansible.builtin.debug:
+        var: cmd_result.stdout_lines
+`},
+  { cat: 'Příkazy a shell', name: 'script', desc: 'Spustit lokální skript na serveru',
+    code: `    - name: Spustit lokální skript
+      ansible.builtin.script:
+        cmd: scripts/setup.sh --mode production
+        executable: /bin/bash
+`},
+
+  // ── Podmínky a smyčky ─────────────────────────────────────────
+  { cat: 'Podmínky a smyčky', name: 'when', desc: 'Podmíněné spuštění tasku',
+    code: `    - name: Task jen pro Debian
+      ansible.builtin.apt:
+        name: vim
+      when:
+        - ansible_os_family == "Debian"
+        - ansible_distribution_major_version | int >= 11
+`},
+  { cat: 'Podmínky a smyčky', name: 'loop', desc: 'Iterace přes seznam',
+    code: `    - name: Vytvořit více adresářů
+      ansible.builtin.file:
+        path: "{{ '{{' }} item {{ '}}' }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - /opt/app/logs
+        - /opt/app/data
+        - /opt/app/tmp
+`},
+  { cat: 'Podmínky a smyčky', name: 'loop with_dict', desc: 'Iterace přes slovník',
+    code: `    - name: Vytvořit uživatele ze slovníku
+      ansible.builtin.user:
+        name: "{{ '{{' }} item.key {{ '}}' }}"
+        uid: "{{ '{{' }} item.value.uid {{ '}}' }}"
+        shell: "{{ '{{' }} item.value.shell {{ '}}' }}"
+      loop: "{{ '{{' }} users | dict2items {{ '}}' }}"
+`},
+  { cat: 'Podmínky a smyčky', name: 'block/rescue', desc: 'Ošetření chyb blokem',
+    code: `    - name: Operace s ošetřením chyb
+      block:
+        - name: Pokusit se o operaci
+          ansible.builtin.command: /opt/app/start.sh
+
+        - name: Ověřit výsledek
+          ansible.builtin.command: /opt/app/healthcheck.sh
+
+      rescue:
+        - name: Zapsat chybu do logu
+          ansible.builtin.shell: echo "CHYBA {{ '{{' }} ansible_failed_task.name {{ '}}' }}" >> /var/log/ansible-errors.log
+
+        - name: Notifikovat admina
+          ansible.builtin.debug:
+            msg: "Selhal task: {{ '{{' }} ansible_failed_result {{ '}}' }}"
+
+      always:
+        - name: Uklidit dočasné soubory
+          ansible.builtin.file:
+            path: /tmp/deploy_lock
+            state: absent
+`},
+
+  // ── Samba AD ──────────────────────────────────────────────────
+  { cat: 'Samba AD', name: 'AD přidat uživatele', desc: 'samba-tool user add',
+    code: `    - name: Přidat uživatele do AD
+      ansible.builtin.command:
+        cmd: >
+          samba-tool user add {{ '{{' }} username {{ '}}' }} {{ '{{' }} password {{ '}}' }}
+          --given-name="{{ '{{' }} first_name {{ '}}' }}"
+          --surname="{{ '{{' }} last_name {{ '}}' }}"
+          --mail-address="{{ '{{' }} email {{ '}}' }}"
+      delegate_to: "{{ '{{' }} groups['dc'][0] {{ '}}' }}"
+      no_log: true
+`},
+  { cat: 'Samba AD', name: 'AD reset hesla', desc: 'samba-tool user setpassword',
+    code: `    - name: Resetovat heslo v AD
+      ansible.builtin.command:
+        cmd: samba-tool user setpassword {{ '{{' }} username {{ '}}' }} --newpassword="{{ '{{' }} new_password {{ '}}' }}"
+      delegate_to: "{{ '{{' }} groups['dc'][0] {{ '}}' }}"
+      no_log: true
+`},
+  { cat: 'Samba AD', name: 'AD přidat do skupiny', desc: 'samba-tool group addmembers',
+    code: `    - name: Přidat uživatele do AD skupiny
+      ansible.builtin.command:
+        cmd: samba-tool group addmembers "{{ '{{' }} group_name {{ '}}' }}" {{ '{{' }} username {{ '}}' }}
+      delegate_to: "{{ '{{' }} groups['dc'][0] {{ '}}' }}"
+`},
+  { cat: 'Samba AD', name: 'AD zakázat účet', desc: 'samba-tool user disable',
+    code: `    - name: Zakázat AD účet
+      ansible.builtin.command:
+        cmd: samba-tool user disable {{ '{{' }} username {{ '}}' }}
+      delegate_to: "{{ '{{' }} groups['dc'][0] {{ '}}' }}"
+`},
+  { cat: 'Samba AD', name: 'Samba backup', desc: 'samba-tool domain backup online',
+    code: `    - name: Záloha domény online
+      ansible.builtin.command:
+        cmd: >
+          samba-tool domain backup online
+          --targetdir=/var/backups/samba
+          --server={{ '{{' }} groups['dc'][0] {{ '}}' }}
+          -U Administrator
+      no_log: true
+      delegate_to: localhost
+`},
+
+  // ── Síť a firewall ────────────────────────────────────────────
+  { cat: 'Síť a firewall', name: 'ufw allow', desc: 'Otevřít port v UFW',
+    code: `    - name: Otevřít port ve firewallu
+      community.general.ufw:
+        rule: allow
+        port: "443"
+        proto: tcp
+        comment: HTTPS
+`},
+  { cat: 'Síť a firewall', name: 'sysctl', desc: 'Nastavit kernel parametr',
+    code: `    - name: Zapnout IP forwarding
+      ansible.posix.sysctl:
+        name: net.ipv4.ip_forward
+        value: "1"
+        sysctl_set: yes
+        state: present
+        reload: yes
+`},
+  { cat: 'Síť a firewall', name: 'hostname', desc: 'Nastavit hostname',
+    code: `    - name: Nastavit hostname
+      ansible.builtin.hostname:
+        name: "{{ '{{' }} inventory_hostname {{ '}}' }}"
+        use: systemd
+`},
+  { cat: 'Síť a firewall', name: 'hosts entry', desc: 'Přidat záznam do /etc/hosts',
+    code: `    - name: Přidat záznam do /etc/hosts
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        line: "{{ '{{' }} item.ip {{ '}}' }} {{ '{{' }} item.name {{ '}}' }}"
+        regexp: ".*{{ '{{' }} item.name {{ '}}' }}$"
+      loop: "{{ '{{' }} dns_entries {{ '}}' }}"
+`},
+
+  // ── Vars a fakta ──────────────────────────────────────────────
+  { cat: 'Vars a fakta', name: 'set_fact', desc: 'Dynamicky nastavit proměnnou',
+    code: `    - name: Nastavit dynamickou proměnnou
+      ansible.builtin.set_fact:
+        deploy_dir: "/opt/{{ '{{' }} app_name {{ '}}' }}/{{ '{{' }} app_version {{ '}}' }}"
+        cacheable: no
+`},
+  { cat: 'Vars a fakta', name: 'vars_files', desc: 'Načíst proměnné ze souboru',
+    code: `  vars_files:
+    - vars/common.yml
+    - "vars/{{ '{{' }} ansible_os_family | lower {{ '}}' }}.yml"
+`},
+  { cat: 'Vars a fakta', name: 'include_vars', desc: 'Podmíněný include proměnných',
+    code: `    - name: Načíst environment-specific vars
+      ansible.builtin.include_vars:
+        file: "vars/{{ '{{' }} env {{ '}}' }}.yml"
+`},
+  { cat: 'Vars a fakta', name: 'pause', desc: 'Počkat nebo zobrazit zprávu',
+    code: `    - name: Počkat 10 sekund
+      ansible.builtin.pause:
+        seconds: 10
+        prompt: "Čekám na start aplikace..."
+`},
+  { cat: 'Vars a fakta', name: 'wait_for', desc: 'Čekat na otevření portu',
+    code: `    - name: Čekat na HTTP server
+      ansible.builtin.wait_for:
+        host: "{{ '{{' }} inventory_hostname {{ '}}' }}"
+        port: 8080
+        delay: 5
+        timeout: 60
+        state: started
+`},
+];
+
+/* ─── Render snippetů ───────────────────────────────────────────── */
+function renderSnippets(list) {
+    const container = document.getElementById('snip-list');
+    container.innerHTML = '';
+    let lastCat = null;
+    list.forEach(snip => {
+        if (snip.cat !== lastCat) {
+            const catEl = document.createElement('div');
+            catEl.className = 'snip-cat';
+            catEl.textContent = snip.cat;
+            container.appendChild(catEl);
+            lastCat = snip.cat;
+        }
+        const el = document.createElement('div');
+        el.className = 'snip-item';
+        el.innerHTML = `<div class="snip-name">${escHtml(snip.name)}</div>`
+                     + `<div class="snip-desc">${escHtml(snip.desc)}</div>`;
+        el.onclick = () => insertSnippet(snip.code);
+        container.appendChild(el);
+    });
+    document.getElementById('snip-count').textContent = list.length;
+}
+
+function filterSnippets(q) {
+    q = q.toLowerCase().trim();
+    if (!q) { renderSnippets(SNIPPETS); return; }
+    renderSnippets(SNIPPETS.filter(s =>
+        s.name.toLowerCase().includes(q) ||
+        s.desc.toLowerCase().includes(q) ||
+        s.cat.toLowerCase().includes(q) ||
+        s.code.toLowerCase().includes(q)
+    ));
+}
+
+renderSnippets(SNIPPETS);
+
+/* ─── Vložit snippet na pozici kurzoru ─────────────────────────── */
+function insertSnippet(code) {
+    const cursor = editor.getCursor();
+    const lineContent = editor.getLine(cursor.line);
+    // Detekovat aktuální odsazení (pro správné zarovnání)
+    const indent = lineContent.match(/^(\s*)/)[1];
+
+    // Pokud kurzor není na začátku řádku a řádek není prázdný, přidat nový řádek
+    let insertText = code;
+    if (cursor.ch > 0 && lineContent.trim().length > 0) {
+        insertText = '\n' + code;
+    }
+
+    editor.replaceRange(insertText, cursor);
+    editor.focus();
+}
+
+/* ─── Util ──────────────────────────────────────────────────────── */
+function escHtml(s) {
+    return String(s).replace(/[&<>"']/g, c =>
+        ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+}
+</script>
+{% endblock %}

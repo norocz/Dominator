@@ -1,0 +1,60 @@
+[project]
+name = "domain-manager"
+version = "0.1.0"
+description = "Správa Samba AD domény, DHCP, Pi-hole a klientů z jednoho místa"
+requires-python = ">=3.12"
+dependencies = [
+    # CLI a config
+    "click>=8.1",
+    "pydantic>=2.6",
+    "pydantic-settings>=2.2",
+    "pyyaml>=6.0",
+    "rich>=13.7",            # hezké výpisy v terminálu
+
+    # AD / LDAP
+    "ldap3>=2.9",            # čistá Python knihovna, nepotřebuje libldap
+
+    # DB
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "psycopg[binary]>=3.1",  # PostgreSQL driver
+
+    # Web
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",  # uploady
+    "itsdangerous>=2.1",     # session cookies
+
+    # Auth (do management UI)
+    "argon2-cffi>=23.1",
+
+    # HTTP klienti pro API integrace (Pi-hole, Kea, Prometheus, Grafana)
+    "httpx>=0.27",
+
+    # Ansible jako knihovna se moc nepoužívá, spíš subprocess přes ansible-runner
+    "ansible-runner>=2.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.3",
+    "mypy>=1.9",
+]
+
+[project.scripts]
+dm = "domain_manager.cli:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["domain_manager*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

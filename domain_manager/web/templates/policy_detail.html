@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}{{ p.name if p else 'Nová politika' }} — Dominator{% endblock %}
+{% block head_extra %}
+<style>
+.spec-editor { font-family: monospace; font-size: 12px; min-height: 200px; resize: vertical; }
+.kind-help { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+.assign-row { display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 8px; align-items: end; }
+</style>
+{% endblock %}
+{% block content %}
+<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+    <a href="/policies" style="color: var(--text-dim); font-size: 13px; text-decoration: none;">← Politiky</a>
+    <h1 style="margin: 0;">{{ p.name if p else 'Nová politika' }}</h1>
+    {% if p %}
+    <span style="font-size: 12px; background: rgba(74,158,255,0.15); color: var(--accent); padding: 3px 10px; border-radius: 10px;">
+        {{ p.kind_label }}
+    </span>
+    {% endif %}
+</div>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; align-items: start;">
+
+<div>
+<form method="post" action="{% if p %}/policies/{{ p.id }}{% else %}/policies{% endif %}">
+<div class="card">
+    <div style="display: grid; gap: 12px;">
+
+        <div>
+            <label style="display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 4px;">Název *</label>
+            <input name="name" value="{{ p.name if p else '' }}" required placeholder="Název politiky" style="font-size: 14px;">
+        </div>
+
+        {% if not p %}
+        <div>
+            <label style="display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 4px;">Typ</label>
+            <select name="kind" id="kind-select" onchange="updateHelp()">
+                {% for k, label in kinds.items() %}
+                <option value="{{ k }}" {% if default_kind == k %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+
+        <div>
+            <label style="display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 4px;">Popis</label>
+            <input name="description" value="{{ p.description if p else '' }}" placeholder="Volitelný popis…">
+        </div>
+
+        <div>
+            <label style="display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 4px;">
+                Spec (JSON)
+            </label>
+            <div class="kind-help" id="spec-help">
+                {% if default_kind == 'firewall' %}Pravidla: {rules: [{proto, port, action}], default_policy: drop|accept}
+                {% elif default_kind == 'pihole' %}{blocklists: [url], allowlists: [url], regex_blocks: [pattern]}
+                {% elif default_kind == 'software' %}{packages: [{name, state: present|absent}], pip: [name]}
+                {% else %}{key: value, ...} — libovolné key/value nastavení{% endif %}
+            </div>
+            <textarea name="spec_json" class="spec-editor">{{ spec_json }}</textarea>
+        </div>
+    </div>
+
+    <div style="margin-top: 16px; display: flex; gap: 10px;">
+        <button type="submit" class="btn">{% if p %}Uložit{% else %}Vytvořit{% endif %}</button>
+        <a href="/policies" class="btn btn-secondary">Zpět</a>
+    </div>
+</div>
+</form>
+</div>
+
+<!-- Pravý sloupec -->
+<div>
+{% if p %}
+<!-- Přiřazení -->
+<div class="card">
+    <h2 style="font-size: 14px; margin-bottom: 12px;">Přiřazení</h2>
+
+    {% if assignments %}
+    <table style="font-size: 12px; margin-bottom: 12px;">
+        <thead><tr><th>Cíl</th><th>ID</th><th style="text-align:center;">Priorita</th><th></th></tr></thead>
+        <tbody>
+        {% for a in assignments %}
+        <tr>
+            <td>{{ a.target_type }}</td>
+            <td style="color: var(--text-dim);">{{ a.target_id }}</td>
+            <td style="text-align:center;">{{ a.priority }}</td>
+            <td>
+                <form method="post" action="/policies/{{ p.id }}/unassign/{{ a.id }}" style="display:inline;">
+                    <button type="submit" style="font-size: 11px; padding: 2px 8px; background: var(--border);">✕</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Formulář pro nové přiřazení -->
+    <form method="post" action="/policies/{{ p.id }}/assign">
+        <div class="assign-row">
+            <select name="target_type" style="font-size: 12px;">
+                <option value="computer">Počítač</option>
+                <option value="computer_group">Skupina PC</option>
+                <option value="user">Uživatel</option>
+                <option value="user_group">Skupina uživatelů</option>
+            </select>
+            <input name="target_id" type="number" placeholder="ID" style="font-size: 12px;" required>
+            <input name="priority" type="number" value="100" style="width: 60px; font-size: 12px;">
+            <button type="submit" style="font-size: 12px; padding: 6px 12px;">Přiřadit</button>
+        </div>
+        <div style="margin-top: 8px; font-size: 11px; color: var(--text-dim);">
+            Skupiny PC: {% for g in groups.computer %}{{ g.name }} ({{ g.id }}){% if not loop.last %}, {% endif %}{% endfor %}<br>
+            Skupiny uživatelů: {% for g in groups.user %}{{ g.name }} ({{ g.id }}){% if not loop.last %}, {% endif %}{% endfor %}
+        </div>
+    </form>
+</div>
+
+<!-- Nebezpečná zóna -->
+<div class="card" style="border-color: var(--danger);">
+    <h2 style="font-size: 14px; color: var(--danger); margin-bottom: 10px;">Nebezpečná zóna</h2>
+    <form method="post" action="/policies/{{ p.id }}/delete"
+          onsubmit="return confirm('Smazat politiku {{ p.name }}?')">
+        <button type="submit" class="btn btn-danger" style="font-size: 13px;">Smazat politiku</button>
+    </form>
+</div>
+{% endif %}
+</div>
+
+</div>
+
+<script>
+var KIND_HELP = {
+    "firewall": 'Pravidla nftables/WinFW: {"default_policy":"drop","rules":[{"proto":"tcp","port":443,"action":"accept"}]}',
+    "pihole":   'DNS filtrování: {"blocklists":["https://..."],"allowlists":[],"regex_blocks":["(^|\\\\.)ads\\\\..*"]}',
+    "software": 'Balíčky: {"packages":[{"name":"nginx","state":"present"}],"pip":["requests"]}',
+    "settings": 'Libovolné key/value: {"wallpaper":"/srv/logo.png","proxy":"proxy.firma.cz:3128"}',
+};
+function updateHelp() {
+    var kind = document.getElementById('kind-select');
+    var help = document.getElementById('spec-help');
+    if (kind && help) help.textContent = KIND_HELP[kind.value] || "";
+}
+</script>
+{% endblock %}

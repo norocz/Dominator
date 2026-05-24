@@ -1,0 +1,6 @@
+username;first_name;last_name;email;department;job_title;phone;office;employee_id;groups
+jnovak;Jan;Novák;jnovak@firma.local;Účetní;Hlavní účetní;+420221111001;Praha 2.205;EMP-0001;Ucetni,Vsichni
+msvoboda;Marie;Svobodová;msvobodova@firma.local;Účetní;Účetní;+420221111002;Praha 2.205;EMP-0002;Ucetni,Vsichni
+ptemerova;Petra;Temerová;ptemerova@firma.local;Marketing;Marketing manažer;+420221111010;Praha 3.312;EMP-0010;Marketing,Vsichni
+jnemec;Josef;Němec;jnemec@firma.local;IT;Správce sítě;+420221111020;Praha 1.105;EMP-0020;IT,Admins,Vsichni
+kspolansky;Karel;Spolanský;kspolansky@firma.local;IT;Junior IT;+420221111021;Praha 1.105;EMP-0021;IT,Vsichni

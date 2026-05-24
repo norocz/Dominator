@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Zdraví systému — Dominator{% endblock %}
+{% block head_extra %}
+<style>
+.check-row { display: grid; grid-template-columns: 200px 120px 1fr; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.check-row:last-child { border-bottom: none; }
+.check-icon { font-size: 18px; }
+.check-detail { color: var(--text-dim); font-size: 12px; font-family: monospace; }
+.category-header { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); margin: 20px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+</style>
+{% endblock %}
+{% block content %}
+<div style="display: flex; align-items: baseline; gap: 16px; margin-bottom: 8px;">
+    <h1 style="margin: 0;">Zdraví systému</h1>
+    <button
+        hx-get="/health/refresh"
+        hx-target="#check-body"
+        hx-swap="innerHTML"
+        hx-indicator="#refresh-spin"
+        style="font-size: 13px; padding: 6px 14px; background: var(--border);">
+        ↻ Zkontrolovat znovu
+    </button>
+    <span id="refresh-spin" style="display:none; color: var(--text-dim); font-size: 13px;">Kontroluji…</span>
+</div>
+<p style="color: var(--text-dim); margin-top: 0; font-size: 13px;">
+    Stav klíčových subsystémů. Zkontrolováno: {{ checked_at }}
+</p>
+
+{% set ok_count = checks | selectattr('ok') | list | length %}
+{% set fail_count = checks | rejectattr('ok') | list | length %}
+<div style="display: flex; gap: 16px; margin-bottom: 20px;">
+    <div style="background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); padding: 10px 20px; border-radius: 8px;">
+        <span style="font-size: 24px; font-weight: 700; color: var(--success);">{{ ok_count }}</span>
+        <span style="color: var(--text-dim); font-size: 13px; margin-left: 6px;">OK</span>
+    </div>
+    <div style="background: {% if fail_count > 0 %}rgba(239,68,68,0.1){% else %}var(--surface){% endif %}; border: 1px solid {% if fail_count > 0 %}rgba(239,68,68,0.3){% else %}var(--border){% endif %}; padding: 10px 20px; border-radius: 8px;">
+        <span style="font-size: 24px; font-weight: 700; color: {% if fail_count > 0 %}var(--danger){% else %}var(--text-dim){% endif %};">{{ fail_count }}</span>
+        <span style="color: var(--text-dim); font-size: 13px; margin-left: 6px;">Problém</span>
+    </div>
+</div>
+
+<div id="check-body">
+{% set ns = namespace(current_cat="") %}
+{% for check in checks %}
+    {% if check.category != ns.current_cat %}
+    {% if ns.current_cat %}</div>{% endif %}
+    <div class="category-header">{{ check.category }}</div>
+    <div class="card" style="padding: 8px 20px;">
+    {% set ns.current_cat = check.category %}
+    {% endif %}
+    <div class="check-row">
+        <span>{{ check.name }}</span>
+        <span>
+            {% if check.ok %}
+            <span class="badge success">✓ OK</span>
+            {% else %}
+            <span class="badge failed">✗ Problém</span>
+            {% endif %}
+        </span>
+        <span class="check-detail">{{ check.detail or "—" }}</span>
+    </div>
+{% endfor %}
+{% if checks %}</div>{% endif %}
+{% if not checks %}
+<div class="card" style="text-align: center; padding: 40px; color: var(--text-dim);">
+    Žádné kontroly nejsou k dispozici (pouze Samba příkazy dostupné na DC serveru).
+</div>
+{% endif %}
+</div>
+
+<div class="card" style="margin-top: 20px;">
+    <h2 style="font-size: 14px; margin-bottom: 12px;">PostgreSQL hot standby</h2>
+    <p style="font-size: 13px; color: var(--text-dim);">
+        Pro nastavení hot standby použijte Ansible:
+    </p>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <a href="/ansible" class="btn btn-secondary" style="font-size: 13px;">
+            Ansible → pg_standby_setup.yml
+        </a>
+        <a href="/ansible" class="btn btn-secondary" style="font-size: 13px;">
+            Ansible → pg_failover.yml (manuální promote)
+        </a>
+    </div>
+    <p style="font-size: 11px; color: var(--text-dim); margin-top: 8px;">
+        Automatický failover s Patroni: nainstalujte Patroni na obou DC a spusťte playbook <code>patroni_setup.yml</code>.
+    </p>
+</div>
+{% endblock %}

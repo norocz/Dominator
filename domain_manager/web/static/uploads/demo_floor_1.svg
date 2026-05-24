@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="680" viewBox="0 0 1000 680">
+  <defs>
+    <style>
+      .wall { stroke: #555; stroke-width: 3; fill: #2a2d35; }
+      .room-fill { fill: #252830; }
+      .room-label { font-family: sans-serif; font-size: 13px; fill: #9da3ad; letter-spacing: 0.04em; text-transform: uppercase; }
+      .room-sub { font-family: sans-serif; font-size: 11px; fill: #6b7280; }
+      .door { stroke: #4a9eff; stroke-width: 2; fill: none; stroke-dasharray: 4 2; }
+      .corridor { fill: #1e2128; }
+      .window { stroke: #4a9eff; stroke-width: 2; fill: rgba(74,158,255,0.08); }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1000" height="680" fill="#1a1d23"/>
+
+  <!-- Outer walls -->
+  <rect x="30" y="30" width="940" height="620" class="wall" rx="2"/>
+
+  <!-- Corridor (horizontal) -->
+  <rect x="30" y="290" width="940" height="100" class="corridor" stroke="#444" stroke-width="1"/>
+  <text x="500" y="348" text-anchor="middle" class="room-label" font-size="11px">C H O D B A</text>
+
+  <!-- === LEVÁ ČÁST === -->
+
+  <!-- Učebna A1 -->
+  <rect x="30" y="30" width="340" height="260" class="room-fill" stroke="#444" stroke-width="1"/>
+  <text x="200" y="150" text-anchor="middle" class="room-label">Učebna A1</text>
+  <text x="200" y="170" text-anchor="middle" class="room-sub">10 počítačů</text>
+  <!-- Okna -->
+  <rect x="50" y="30" width="60" height="8" class="window"/>
+  <rect x="140" y="30" width="60" height="8" class="window"/>
+  <rect x="230" y="30" width="60" height="8" class="window"/>
+  <rect x="320" y="30" width="40" height="8" class="window"/>
+  <!-- Dveře (oblouk) -->
+  <path d="M 250 290 A 30 30 0 0 1 220 260" class="door"/>
+  <line x1="250" y1="290" x2="250" y2="260" class="door"/>
+
+  <!-- Učebna A2 -->
+  <rect x="370" y="30" width="340" height="260" class="room-fill" stroke="#444" stroke-width="1"/>
+  <text x="540" y="150" text-anchor="middle" class="room-label">Učebna A2</text>
+  <text x="540" y="170" text-anchor="middle" class="room-sub">10 počítačů</text>
+  <!-- Okna -->
+  <rect x="390" y="30" width="60" height="8" class="window"/>
+  <rect x="480" y="30" width="60" height="8" class="window"/>
+  <rect x="570" y="30" width="60" height="8" class="window"/>
+  <!-- Dveře -->
+  <path d="M 530 290 A 30 30 0 0 1 500 260" class="door"/>
+  <line x1="530" y1="290" x2="530" y2="260" class="door"/>
+
+  <!-- IT Kancelář -->
+  <rect x="710" y="30" width="260" height="260" class="room-fill" stroke="#444" stroke-width="1"/>
+  <text x="840" y="150" text-anchor="middle" class="room-label">Kancelář IT</text>
+  <text x="840" y="170" text-anchor="middle" class="room-sub">Správci sítě</text>
+  <!-- Okna -->
+  <rect x="730" y="30" width="60" height="8" class="window"/>
+  <rect x="830" y="30" width="60" height="8" class="window"/>
+  <rect x="962" y="60" width="8" height="60" class="window"/>
+  <rect x="962" y="160" width="8" height="60" class="window"/>
+  <!-- Dveře -->
+  <path d="M 820 290 A 30 30 0 0 0 850 260" class="door"/>
+  <line x1="820" y1="290" x2="820" y2="260" class="door"/>
+
+  <!-- === PRAVÁ ČÁST DOLE === -->
+
+  <!-- Serverovna -->
+  <rect x="710" y="390" width="260" height="260" class="room-fill" stroke="#4a9eff" stroke-width="1.5"/>
+  <text x="840" y="510" text-anchor="middle" class="room-label" fill="#4a9eff">Serverovna</text>
+  <text x="840" y="530" text-anchor="middle" class="room-sub">Rack A, B</text>
+  <!-- Okna - serverovna nemá okna -->
+  <!-- Dveře -->
+  <path d="M 820 390 A 30 30 0 0 1 790 420" class="door"/>
+  <line x1="820" y1="390" x2="790" y2="390" class="door"/>
+
+  <!-- Ředitelna -->
+  <rect x="370" y="390" width="200" height="260" class="room-fill" stroke="#444" stroke-width="1"/>
+  <text x="470" y="510" text-anchor="middle" class="room-label">Ředitelna</text>
+  <!-- Okna dole -->
+  <rect x="390" y="642" width="60" height="8" class="window"/>
+  <rect x="480" y="642" width="70" height="8" class="window"/>
+  <!-- Dveře -->
+  <path d="M 470 390 A 30 30 0 0 0 440 420" class="door"/>
+  <line x1="470" y1="390" x2="440" y2="390" class="door"/>
+
+  <!-- Sekretariát -->
+  <rect x="570" y="390" width="140" height="260" class="room-fill" stroke="#444" stroke-width="1"/>
+  <text x="640" y="510" text-anchor="middle" class="room-label" font-size="11px">Sekretariát</text>
+  <!-- Dveře -->
+  <path d="M 640 390 A 25 25 0 0 0 615 415" class="door"/>
+  <line x1="640" y1="390" x2="615" y2="390" class="door"/>
+
+  <!-- WC + Schodiště -->
+  <rect x="30" y="390" width="140" height="120" class="room-fill" stroke="#444" stroke-width="1"/>
+  <text x="100" y="455" text-anchor="middle" class="room-sub">WC</text>
+  <rect x="30" y="510" width="140" height="140" class="room-fill" stroke="#444" stroke-width="1"/>
+  <text x="100" y="582" text-anchor="middle" class="room-sub">Schodiště</text>
+  <!-- Schody -->
+  <line x1="50" y1="530" x2="150" y2="530" stroke="#555" stroke-width="1"/>
+  <line x1="50" y1="548" x2="150" y2="548" stroke="#555" stroke-width="1"/>
+  <line x1="50" y1="566" x2="150" y2="566" stroke="#555" stroke-width="1"/>
+  <line x1="50" y1="584" x2="150" y2="584" stroke="#555" stroke-width="1"/>
+  <line x1="50" y1="602" x2="150" y2="602" stroke="#555" stroke-width="1"/>
+  <line x1="50" y1="620" x2="150" y2="620" stroke="#555" stroke-width="1"/>
+  <line x1="50" y1="638" x2="150" y2="638" stroke="#555" stroke-width="1"/>
+
+  <!-- Kabinet -->
+  <rect x="170" y="390" width="200" height="260" class="room-fill" stroke="#444" stroke-width="1"/>
+  <text x="270" y="510" text-anchor="middle" class="room-label">Kabinet</text>
+  <!-- Dveře -->
+  <path d="M 270 390 A 25 25 0 0 0 245 415" class="door"/>
+  <line x1="270" y1="390" x2="245" y2="390" class="door"/>
+
+  <!-- Legenda -->
+  <rect x="30" y="650" width="10" height="8" fill="none" stroke="#4a9eff" stroke-width="1.5"/>
+  <text x="46" y="658" class="room-sub">Serverovna (chráněný přístup)</text>
+  <rect x="30" y="665" width="10" height="8" class="window"/>
+  <text x="46" y="673" class="room-sub">Okno / Dveře</text>
+</svg>

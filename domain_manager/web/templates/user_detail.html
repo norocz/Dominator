@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}{{ u.username if u else 'Nový uživatel' }} — Domain Manager{% endblock %}
+{% block head_extra %}
+<style>
+.field-grid {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    gap: 10px 16px;
+    align-items: center;
+    font-size: 13px;
+}
+.field-grid label { color: var(--text-dim); }
+.field-grid input, .field-grid select, .field-grid textarea {
+    font-size: 13px;
+    padding: 6px 10px;
+}
+.section-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    margin: 20px 0 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+    grid-column: 1 / -1;
+}
+.group-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.group-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(74,158,255,0.12); border: 1px solid rgba(74,158,255,0.3);
+    padding: 3px 10px; border-radius: 12px; font-size: 12px; color: var(--accent);
+}
+</style>
+{% endblock %}
+{% block content %}
+<div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px;">
+    <a href="/users" style="color: var(--text-dim); font-size: 13px; text-decoration: none;">← Uživatelé</a>
+    <h1 style="margin: 0;">
+        {% if u %}{{ u.display_name }}{% else %}Nový uživatel{% endif %}
+    </h1>
+    {% if u %}
+    <span class="badge {% if u.enabled %}online{% else %}offline{% endif %}" style="font-size: 12px;">
+        {% if u.enabled %}Aktivní{% else %}Deaktivovaný{% endif %}
+    </span>
+    {% endif %}
+</div>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; align-items: start;">
+
+<!-- Levý sloupec — formulář -->
+<form method="post" action="{% if u %}/users/{{ u.id }}{% else %}/users{% endif %}">
+    <div class="card">
+        <div class="field-grid">
+            <span class="section-title">Identita</span>
+
+            <label for="username">Přihlašovací jméno *</label>
+            <input id="username" name="username"
+                   value="{{ u.username if u else '' }}"
+                   {% if u %}readonly style="opacity: 0.6;"{% endif %}
+                   required placeholder="jnovak">
+
+            <label for="first_name">Jméno *</label>
+            <input id="first_name" name="first_name"
+                   value="{{ u.first_name if u else '' }}" required placeholder="Jan">
+
+            <label for="last_name">Příjmení *</label>
+            <input id="last_name" name="last_name"
+                   value="{{ u.last_name if u else '' }}" required placeholder="Novák">
+
+            <label for="display_name">Zobrazované jméno</label>
+            <input id="display_name" name="display_name"
+                   value="{{ u.display_name if u else '' }}" placeholder="Jan Novák">
+
+            <label for="title">Titul</label>
+            <input id="title" name="title"
+                   value="{{ u.title if u else '' }}" placeholder="Ing.">
+
+            <span class="section-title">Kontakt</span>
+
+            <label for="email">E-mail</label>
+            <input id="email" name="email" type="email"
+                   value="{{ u.email if u else '' }}" placeholder="jnovak@firma.cz">
+
+            <label for="phone">Telefon (pevná linka)</label>
+            <input id="phone" name="phone"
+                   value="{{ u.phone if u else '' }}" placeholder="+420 123 456 789">
+
+            <label for="mobile">Mobil</label>
+            <input id="mobile" name="mobile"
+                   value="{{ u.mobile if u else '' }}" placeholder="+420 601 234 567">
+
+            <span class="section-title">Organizace</span>
+
+            <label for="department">Oddělení</label>
+            <input id="department" name="department"
+                   value="{{ u.department if u else '' }}" placeholder="IT, Účetní, HR…">
+
+            <label for="job_title">Pracovní pozice</label>
+            <input id="job_title" name="job_title"
+                   value="{{ u.job_title if u else '' }}" placeholder="Správce sítě">
+
+            <label for="manager_username">Nadřízený (username)</label>
+            <input id="manager_username" name="manager_username"
+                   value="{{ u.manager_username if u else '' }}" placeholder="jnovak">
+
+            <label for="employee_id">ID zaměstnance</label>
+            <input id="employee_id" name="employee_id"
+                   value="{{ u.employee_id if u else '' }}" placeholder="EMP-0042">
+
+            <label for="office">Kancelář</label>
+            <input id="office" name="office"
+                   value="{{ u.office if u else '' }}" placeholder="Praha 2. patro, 205">
+
+            <span class="section-title">Stav účtu</span>
+
+            <label for="enabled">Stav</label>
+            <select id="enabled" name="enabled">
+                <option value="true"  {% if not u or u.enabled %}selected{% endif %}>Aktivní</option>
+                <option value="false" {% if u and not u.enabled %}selected{% endif %}>Deaktivovaný</option>
+            </select>
+
+            <span class="section-title">Poznámky</span>
+
+            <label for="notes">Poznámky</label>
+            <textarea id="notes" name="notes" rows="3">{{ u.notes if u else '' }}</textarea>
+        </div>
+
+        <!-- Skupiny -->
+        {% if groups %}
+        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+            <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); margin-bottom: 8px;">
+                Skupiny
+            </div>
+            <div class="group-chips" style="gap: 8px;">
+                {% for g in groups %}
+                <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+                    <input type="checkbox" name="group_ids" value="{{ g.id }}"
+                           {% if g.member %}checked{% endif %}>
+                    {{ g.name }}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div style="margin-top: 20px; display: flex; gap: 10px; align-items: center;">
+            <button type="submit" class="btn">
+                {% if u %}Uložit změny{% else %}Vytvořit uživatele{% endif %}
+            </button>
+            <a href="/users" class="btn btn-secondary">Zpět</a>
+        </div>
+    </div>
+</form>
+
+<!-- Pravý sloupec — metadata a akce -->
+<div>
+    {% if u %}
+    <!-- Skupiny — zobrazení -->
+    {% if user_groups %}
+    <div class="card">
+        <h2 style="font-size: 14px; margin-bottom: 10px;">Skupiny</h2>
+        <div class="group-chips">
+            {% for g in user_groups %}
+            <span class="group-chip">{{ g.name }}</span>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Metadata -->
+    <div class="card">
+        <h2 style="font-size: 14px; margin-bottom: 10px;">Metadata</h2>
+        <div style="display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 12px;">
+            {% if u.ad_dn %}
+            <span style="color: var(--text-dim);">AD DN</span>
+            <span style="font-family: monospace; font-size: 11px; word-break: break-all;">{{ u.ad_dn }}</span>
+            {% endif %}
+            {% if u.password_last_set %}
+            <span style="color: var(--text-dim);">Heslo nastaveno</span>
+            <span>{{ u.password_last_set }}</span>
+            {% endif %}
+            {% if u.account_expires %}
+            <span style="color: var(--text-dim);">Platnost do</span>
+            <span>{{ u.account_expires }}</span>
+            {% endif %}
+            <span style="color: var(--text-dim);">Vytvořeno</span>
+            <span>{{ u.created_at }}{% if u.created_by %} ({{ u.created_by }}){% endif %}</span>
+            <span style="color: var(--text-dim);">Upraveno</span>
+            <span>{{ u.updated_at }}{% if u.updated_by %} ({{ u.updated_by }}){% endif %}</span>
+        </div>
+    </div>
+
+    <!-- Nebezpečná zóna -->
+    <div class="card" style="border-color: var(--danger);">
+        <h2 style="font-size: 14px; margin-bottom: 10px; color: var(--danger);">Nebezpečná zóna</h2>
+        <form method="post" action="/users/{{ u.id }}/delete"
+              onsubmit="return confirm('Opravdu smazat uživatele {{ u.username }}?')">
+            <button type="submit" class="btn btn-danger" style="font-size: 13px;">
+                Smazat uživatele
+            </button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+</div>
+{% endblock %}

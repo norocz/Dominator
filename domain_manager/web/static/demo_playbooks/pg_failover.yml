@@ -1,0 +1,40 @@
+---
+# PostgreSQL manuální failover — povýší standby (DC2) na primární.
+# POZOR: Spustit POUZE když primary (DC1) je skutečně nedostupný!
+# Po failoveru je potřeba ručně obnovit DC1 jako nový standby.
+- name: PostgreSQL manuální failover (promote DC2 na primary)
+  hosts: dc2
+  become: true
+  vars:
+    pg_version: 16
+    pg_data: /var/lib/postgresql/{{ pg_version }}/main
+
+  tasks:
+    - name: Ověřit že DC2 je aktuálně ve standby módu
+      become_user: postgres
+      command: psql -c "SELECT pg_is_in_recovery();"
+      register: recovery_status
+      failed_when: "'t' not in recovery_status.stdout"
+
+    - name: Povýšit standby na primární
+      become_user: postgres
+      command: pg_ctl promote -D {{ pg_data }}
+      register: promote_result
+
+    - name: Výsledek promote
+      debug:
+        msg: "{{ promote_result.stdout }}"
+
+    - name: Ověřit že DC2 je nyní primární
+      become_user: postgres
+      command: psql -c "SELECT pg_is_in_recovery();"
+      register: primary_check
+
+    - name: Výsledek
+      debug:
+        msg: |
+          PostgreSQL failover dokončen.
+          DC2 je nyní primary (pg_is_in_recovery = {{ primary_check.stdout }}).
+          Nezapomeňte:
+          1. Obnovit DC1 jako nový standby (pg_standby_setup.yml s prohozenými hostiteli)
+          2. Aktualizovat konfigurátor Dominatoru aby ukazoval na DC2 jako nový primary

@@ -1,0 +1,113 @@
+# ============================================================
+# Domain Manager - konfigurace
+# Zkopírujte tento soubor jako config.yaml a upravte hodnoty.
+# Citlivé položky (hesla) doporučuju načítat z env nebo vault,
+# pro start ale stačí mít je tady s chmod 600.
+# ============================================================
+
+# --- Doména (Samba AD) -----------------------------------------------------
+domain:
+  realm: FIRMA.LOCAL            # FQDN domény (uppercase je konvence)
+  netbios: FIRMA                # NetBIOS název (max 15 znaků, uppercase)
+  admin_password: "ZmenMe.Heslo123!"  # heslo administrátora domény
+  dns_forwarder: 1.1.1.1        # kam Samba pošle dotazy, které neumí
+
+# --- Síť -------------------------------------------------------------------
+network:
+  subnet: 192.168.10.0/24
+  gateway: 192.168.10.1
+  dns_servers:                  # DNS, které dostanou klienti (DC1, DC2)
+    - 192.168.10.10
+    - 192.168.10.11
+
+# --- Servery (role) --------------------------------------------------------
+servers:
+  dc1:
+    hostname: dc1
+    ip: 192.168.10.10
+    interface: ens18            # síťovka, ip a route v netplanu se nastaví
+    role: primary               # primary | secondary
+  dc2:
+    hostname: dc2
+    ip: 192.168.10.11
+    interface: ens18
+    role: secondary
+
+# --- DHCP (ISC Kea) běží na DC1 (active) + DC2 (standby) ------------------
+dhcp:
+  enabled: true
+  pool_start: 192.168.10.100
+  pool_end: 192.168.10.200
+  lease_time_seconds: 86400
+  # MAC reservace se spravují přes management engine / web UI,
+  # zde jen "seed" hodnoty pro první instalaci:
+  reservations: []
+  # - mac: "aa:bb:cc:dd:ee:ff"
+  #   ip: 192.168.10.50
+  #   hostname: pc-ucetni-01
+
+# --- Pi-hole (Docker, 2 instance) -----------------------------------------
+pihole:
+  enabled: true
+  webpassword: "ZmenMePihole!"
+  upstream_dns:
+    - 1.1.1.1
+    - 9.9.9.9
+  # Port, na kterém Pi-hole poslouchá DNS. Samba interní DNS musí být
+  # na 53, takže Pi-hole bude na jiném portu a Samba ho použije jako
+  # forwarder (resolver chain: klient -> Samba DNS -> Pi-hole -> upstream).
+  dns_port: 5353
+  web_port: 8081
+
+# --- Monitoring (vše na DC2) ----------------------------------------------
+monitoring:
+  enabled: true
+  prometheus:
+    port: 9090
+    retention_days: 30
+  grafana:
+    port: 3000
+    admin_password: "ZmenMeGrafana!"
+  zabbix:
+    port: 8082
+    db_password: "ZmenMeZabbixDb!"
+
+# --- PostgreSQL (management engine) ---------------------------------------
+postgres:
+  enabled: true
+  db_name: domainmgr
+  db_user: domainmgr
+  db_password: "ZmenMePostgres!"
+  replication_password: "ZmenMeRepl!"
+  # primary běží na DC1, hot standby na DC2
+
+# --- Management engine (Python + web) -------------------------------------
+manager:
+  enabled: true
+  bind_host: 0.0.0.0
+  bind_port: 8000
+  secret_key: "ZmenMe-na-nahodny-retezec-min-32-znaku"
+  session_timeout_minutes: 120
+  # plánky budov se ukládají jako PNG/SVG + DB tabulka pozic
+  uploads_dir: /var/lib/domain-manager/uploads
+
+# --- Firewall (nftables) --------------------------------------------------
+firewall:
+  enabled: true
+  # Skupiny pravidel - přiřazují se v management UI na počítače/skupiny.
+  # Zde je default policy a "trusted" rozsahy.
+  default_policy: drop          # drop | accept
+  trusted_networks:
+    - 192.168.10.0/24
+  # Vždy povolené odchozí porty z DC (DNS, NTP, HTTPS pro updates):
+  egress_always:
+    - { proto: udp, port: 53 }
+    - { proto: udp, port: 123 }
+    - { proto: tcp, port: 443 }
+    - { proto: tcp, port: 80 }
+
+# --- Ansible --------------------------------------------------------------
+ansible:
+  enabled: true
+  inventory_path: /var/lib/domain-manager/ansible/inventory
+  playbooks_path: /var/lib/domain-manager/ansible/playbooks

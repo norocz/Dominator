@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}Uživatelé — Domain Manager{% endblock %}
+{% block head_extra %}
+<style>
+    .toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+    .toolbar input.search { width: 280px; }
+    .toolbar select, .toolbar input { padding: 6px 10px; font-size: 13px; }
+    .facet-group { display: flex; flex-direction: column; gap: 4px; min-width: 140px; }
+    .facet-group label { color: var(--text-dim); font-size: 11px; text-transform: uppercase; }
+
+    table.data { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table.data th { white-space: nowrap; cursor: pointer; user-select: none; }
+    table.data th .sort-arrow { color: var(--accent); margin-left: 4px; }
+    table.data tr:hover td { background: rgba(255,255,255,0.02); }
+    table.data td { vertical-align: middle; }
+
+    .col-toggle {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: 6px; padding: 12px; max-height: 320px; overflow-y: auto;
+        display: none; position: absolute; right: 0; top: 100%; z-index: 10;
+        min-width: 240px;
+    }
+    .col-toggle.open { display: block; }
+    .col-toggle label { display: block; padding: 4px 0; cursor: pointer; }
+
+    .pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 12px; }
+    .pager .info { color: var(--text-dim); font-size: 13px; margin-right: auto; }
+</style>
+{% endblock %}
+{% block content %}
+<div style="display:flex; align-items:center; gap:12px; margin-bottom:8px; flex-wrap:wrap;">
+    <h1 style="margin:0;">Uživatelé</h1>
+    <a href="/users/new" class="btn" style="font-size:13px; padding:6px 14px;">+ Nový uživatel</a>
+    <div style="flex:1"></div>
+    <button type="button" onclick="document.getElementById('user-csv-panel').classList.toggle('open')"
+        style="font-size:13px; padding:6px 14px; background:var(--border); color:var(--text);">
+        &#x2191; Import CSV
+    </button>
+</div>
+<p style="color: var(--text-dim); margin-top: 0;">
+    Správa uživatelů domény. Filtrujte, editujte, přiřazujte do skupin.
+</p>
+
+<style>#user-csv-panel{display:none}#user-csv-panel.open{display:block}</style>
+<div id="user-csv-panel" class="card" style="margin-bottom:16px; padding:16px 20px;">
+    <div style="font-size:14px; font-weight:600; margin-bottom:8px;">Import uživatelů z CSV</div>
+    <div id="csv-result"></div>
+    <form hx-post="/users/import-csv" hx-target="#csv-result" hx-swap="innerHTML" hx-encoding="multipart/form-data">
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:8px;">
+            <input type="file" name="file" accept=".csv,.txt" required
+                style="width:auto; background:transparent; border:none; padding:0; font-size:13px;">
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; white-space:nowrap;">
+                <input type="checkbox" name="sync_ad" value="1" style="width:auto;">
+                Vytvořit i v AD
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px; white-space:nowrap;">
+                AD heslo:
+                <input type="password" name="ad_password" placeholder="volitelné"
+                    style="width:140px; font-size:12px; padding:4px 8px;">
+            </label>
+            <button type="submit" style="padding:6px 18px;">Importovat</button>
+        </div>
+    </form>
+    <p style="font-size:11px; color:var(--text-dim); margin:0;">
+        Povinné sloupce: <code>username</code>, <code>first_name</code>, <code>last_name</code>.
+        Volitelné: <code>email</code>, <code>phone</code>, <code>department</code>,
+        <code>job_title</code>, <code>title</code>, <code>manager</code>, <code>office</code>.
+        Záhlaví lze psát česky i anglicky. Existující uživatelé se aktualizují.
+    </p>
+</div>
+
+<form id="filter-form"
+      hx-get="/users/table"
+      hx-target="#table-slot"
+      hx-trigger="change, keyup delay:300ms from:input.search, submit"
+      hx-push-url="true">
+
+    <div class="toolbar">
+        <input class="search" name="q"
+               value="{{ request.query_params.get('q', '') }}"
+               placeholder="Hledat jméno, e-mail, oddělení…">
+
+        <div class="facet-group">
+            <label>Oddělení</label>
+            <select name="department">
+                <option value="">— vše —</option>
+                {% for v in facets.department %}
+                <option value="{{ v }}" {% if request.query_params.get('department') == v %}selected{% endif %}>{{ v }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="facet-group">
+            <label>Pozice</label>
+            <select name="job_title">
+                <option value="">— vše —</option>
+                {% for v in facets.job_title %}
+                <option value="{{ v }}" {% if request.query_params.get('job_title') == v %}selected{% endif %}>{{ v }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="facet-group">
+            <label>Stav účtu</label>
+            <select name="enabled">
+                <option value="">— vše —</option>
+                <option value="true"  {% if request.query_params.get('enabled') == 'true'  %}selected{% endif %}>Aktivní</option>
+                <option value="false" {% if request.query_params.get('enabled') == 'false' %}selected{% endif %}>Deaktivovaný</option>
+            </select>
+        </div>
+
+        <div style="flex: 1;"></div>
+
+        <div style="position: relative;">
+            <button type="button" onclick="document.getElementById('ucol-toggle').classList.toggle('open')">
+                Sloupce
+            </button>
+            <div id="ucol-toggle" class="col-toggle">
+                {% for key, label in all_columns.items() %}
+                <label>
+                    <input type="checkbox" name="cols_pick" value="{{ key }}"
+                           {% if key in active_columns %}checked{% endif %}
+                           onchange="updateColsParam()">
+                    {{ label }}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <input type="hidden" name="cols" id="cols-input"
+           value="{{ active_columns | join(',') }}">
+    <input type="hidden" name="sort" id="sort-input"
+           value="{{ request.query_params.get('sort', '') }}">
+</form>
+
+<div id="table-slot"
+     hx-get="/users/table{{ '?' + request.url.query if request.url.query else '' }}"
+     hx-trigger="load"
+     hx-swap="innerHTML">
+    <div style="color: var(--text-dim); padding: 24px;">Načítám…</div>
+</div>
+
+<script>
+function updateColsParam() {
+    const picked = Array.from(document.querySelectorAll('input[name="cols_pick"]:checked'))
+        .map(el => el.value);
+    document.getElementById('cols-input').value = picked.join(',');
+    htmx.trigger('#filter-form', 'change');
+}
+
+window.applySort = function(field) {
+    const sortInput = document.getElementById('sort-input');
+    const current = sortInput.value;
+    if (current === field) sortInput.value = '-' + field;
+    else if (current === '-' + field) sortInput.value = '';
+    else sortInput.value = field;
+    htmx.trigger('#filter-form', 'change');
+};
+</script>
+{% endblock %}

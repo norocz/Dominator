@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}{{ d.hostname if d else 'Nové zařízení' }} — SNMP — Dominator{% endblock %}
+{% block head_extra %}
+<style>
+.port-table td, .port-table th { font-size: 11px; padding: 6px 8px; }
+.port-up { color: var(--success); }
+.port-down { color: var(--text-dim); }
+.mac-entry { font-family: monospace; font-size: 11px; color: var(--text-dim); }
+</style>
+{% endblock %}
+{% block content %}
+<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+    <a href="/snmp" style="color: var(--text-dim); font-size: 13px; text-decoration: none;">← Zařízení</a>
+    <h1 style="margin: 0;">{{ d.hostname if d else 'Nové síťové zařízení' }}</h1>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start;">
+
+<form method="post" action="{% if d %}/snmp/{{ d.id }}{% else %}/snmp{% endif %}">
+<div class="card">
+    <div style="display: grid; gap: 10px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+                <label style="font-size: 12px; color: var(--text-dim); display: block; margin-bottom: 3px;">Hostname *</label>
+                <input name="hostname" value="{{ d.hostname if d else '' }}" required
+                       {% if d %}readonly style="opacity:0.6;"{% endif %} placeholder="switch-01">
+            </div>
+            <div>
+                <label style="font-size: 12px; color: var(--text-dim); display: block; margin-bottom: 3px;">IP adresa</label>
+                <input name="ip" value="{{ d.ip if d else '' }}" placeholder="192.168.10.2">
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+            <div>
+                <label style="font-size: 12px; color: var(--text-dim); display: block; margin-bottom: 3px;">SNMP community</label>
+                <input name="community" value="{{ d.community if d else 'public' }}">
+            </div>
+            <div>
+                <label style="font-size: 12px; color: var(--text-dim); display: block; margin-bottom: 3px;">SNMP verze</label>
+                <select name="snmp_version">
+                    {% for v in ["1", "2c", "3"] %}
+                    <option value="{{ v }}" {% if d and d.snmp_version == v %}selected{% elif not d and v == "2c" %}selected{% endif %}>v{{ v }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label style="font-size: 12px; color: var(--text-dim); display: block; margin-bottom: 3px;">Typ</label>
+                <select name="device_type">
+                    {% for k, label in device_types.items() %}
+                    <option value="{{ k }}" {% if d and d.device_type == k %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+                <label style="font-size: 12px; color: var(--text-dim); display: block; margin-bottom: 3px;">Výrobce</label>
+                <input name="manufacturer" value="{{ d.manufacturer if d else '' }}" placeholder="MikroTik, Cisco, TP-Link…">
+            </div>
+            <div>
+                <label style="font-size: 12px; color: var(--text-dim); display: block; margin-bottom: 3px;">Model</label>
+                <input name="model" value="{{ d.model if d else '' }}" placeholder="CRS326, SG300…">
+            </div>
+        </div>
+
+        <div>
+            <label style="font-size: 12px; color: var(--text-dim); display: block; margin-bottom: 3px;">Lokace</label>
+            <input name="location" value="{{ d.location if d else '' }}" placeholder="Rack A1, Serverovna…">
+        </div>
+
+        <div>
+            <label style="font-size: 12px; color: var(--text-dim); display: block; margin-bottom: 3px;">Poznámky</label>
+            <textarea name="notes" rows="2">{{ d.notes if d else '' }}</textarea>
+        </div>
+    </div>
+
+    <div style="margin-top: 16px; display: flex; gap: 10px; align-items: center;">
+        <button type="submit" class="btn">{% if d %}Uložit{% else %}Přidat{% endif %}</button>
+        {% if d %}
+        <span
+            id="sync-btn"
+            hx-post="/snmp/{{ d.id }}/sync"
+            hx-target="#sync-btn"
+            hx-swap="outerHTML"
+            hx-trigger="click"
+            style="cursor:pointer; padding: 8px 16px; background: var(--border); border-radius: 6px; font-size: 13px;">
+            ↻ Synchronizovat SNMP
+        </span>
+        {% endif %}
+        <a href="/snmp" class="btn btn-secondary">Zpět</a>
+    </div>
+</div>
+</form>
+
+<div>
+{% if d and d.sys_description %}
+<div class="card">
+    <h2 style="font-size: 14px; margin-bottom: 10px;">Systémové info</h2>
+    <div style="display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 12px;">
+        <span style="color: var(--text-dim);">Jméno</span><span>{{ d.sys_name or "—" }}</span>
+        <span style="color: var(--text-dim);">Uptime</span>
+        <span>{% if d.sys_uptime_seconds %}{{ (d.sys_uptime_seconds // 86400) }}d {{ (d.sys_uptime_seconds % 86400 // 3600) }}h{% else %}—{% endif %}</span>
+        <span style="color: var(--text-dim);">Popis</span>
+        <span style="font-size: 11px; word-break: break-all;">{{ d.sys_description[:200] }}</span>
+    </div>
+</div>
+{% endif %}
+
+{% if d %}
+<div class="card" style="border-color: var(--danger);">
+    <h2 style="font-size: 14px; color: var(--danger); margin-bottom: 10px;">Nebezpečná zóna</h2>
+    <form method="post" action="/snmp/{{ d.id }}/delete"
+          onsubmit="return confirm('Smazat zařízení {{ d.hostname }}?')">
+        <button type="submit" class="btn btn-danger" style="font-size: 13px;">Smazat zařízení</button>
+    </form>
+</div>
+{% endif %}
+</div>
+</div>
+
+{% if port_stats %}
+<div class="card" style="margin-top: 20px;">
+    <h2 style="font-size: 14px; margin-bottom: 12px;">Porty ({{ port_stats | length }})</h2>
+    <table class="port-table" style="font-size: 11px;">
+        <thead>
+            <tr>
+                <th>Index</th><th>Název</th><th>Alias</th><th>Stav</th>
+                <th>Rychlost</th><th style="text-align:right;">RX</th><th style="text-align:right;">TX</th><th style="text-align:right;">Chyby</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for idx, p in port_stats.items() %}
+        <tr>
+            <td style="color:var(--text-dim);">{{ idx }}</td>
+            <td>{{ p.get('name', '—') }}</td>
+            <td style="color:var(--text-dim);">{{ p.get('alias', '') or '—' }}</td>
+            <td class="{% if p.get('oper_status') == 'up' %}port-up{% else %}port-down{% endif %}">
+                {{ p.get('oper_status', '—') }}
+            </td>
+            <td>{% if p.get('speed_mbps') %}{{ p.speed_mbps }} Mb/s{% else %}—{% endif %}</td>
+            <td style="text-align:right; font-variant-numeric: tabular-nums;">
+                {% if p.get('in_bytes') %}{{ "{:,}".format(p.in_bytes) }} B{% else %}—{% endif %}
+            </td>
+            <td style="text-align:right; font-variant-numeric: tabular-nums;">
+                {% if p.get('out_bytes') %}{{ "{:,}".format(p.out_bytes) }} B{% else %}—{% endif %}
+            </td>
+            <td style="text-align:right; color:{% if p.get('in_errors', 0) + p.get('out_errors', 0) > 0 %}var(--danger){% else %}var(--text-dim){% endif %};">
+                {{ (p.get('in_errors', 0) + p.get('out_errors', 0)) or '—' }}
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% if mac_table %}
+<div class="card" style="margin-top: 20px;">
+    <h2 style="font-size: 14px; margin-bottom: 12px;">MAC tabulka ({{ mac_table | length }} záznamů)</h2>
+    <table style="font-size: 11px;">
+        <thead><tr><th>MAC adresa</th><th>Port</th><th>Hostname (z DB)</th></tr></thead>
+        <tbody>
+        {% for mac, port_idx in mac_table.items() %}
+        <tr>
+            <td class="mac-entry">{{ mac }}</td>
+            <td style="color: var(--text-dim);">{{ port_idx }}</td>
+            <td style="color: var(--text-dim);">—</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}

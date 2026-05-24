@@ -1,0 +1,14 @@
+---
+# Popis: Co tento playbook dělá
+- name: Zkušební playbook
+  hosts: all
+  become: yes
+
+  vars:
+    # Definujte proměnné zde
+    example_var: "345"
+
+  tasks:
+    - name: Hello world
+      ansible.builtin.debug:
+        msg: "Spouštím na {{ example_var }}"

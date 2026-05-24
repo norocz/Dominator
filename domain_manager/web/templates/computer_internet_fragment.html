@@ -1,0 +1,72 @@
+{# HTMX fragment - sekce "Přístup k internetu" na detailu počítače #}
+<div id="internet-section" class="detail-section" style="grid-column: 1 / -1;">
+    <h3>Přístup k internetu</h3>
+
+    <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+
+        {% if c.internet_blocked %}
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 22px;">🚫</span>
+            <div>
+                <div style="font-weight: 600; color: var(--danger);">Internet zablokován</div>
+                <div style="font-size: 12px; color: var(--text-dim);">
+                    {% if c.internet_block_source %}přes {{ c.internet_block_source }}{% endif %}
+                    {% if c.internet_block_job_id %}
+                    · <a href="/ansible/jobs/{{ c.internet_block_job_id }}" style="color: var(--text-dim);">
+                        job #{{ c.internet_block_job_id }}
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <button
+            hx-post="/computers/{{ c.id }}/internet-unblock"
+            hx-target="#internet-section"
+            hx-swap="outerHTML"
+            style="background: var(--success);">
+            ✓ Odblokovat internet
+        </button>
+
+        {% else %}
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 22px;">🌐</span>
+            <div>
+                <div style="font-weight: 600; color: var(--success);">Internet povolen</div>
+                <div style="font-size: 12px; color: var(--text-dim);">žádné blokování aktivní</div>
+            </div>
+        </div>
+
+        <button
+            hx-post="/computers/{{ c.id }}/internet-block"
+            hx-target="#internet-section"
+            hx-swap="outerHTML"
+            style="background: var(--danger);">
+            🚫 Zablokovat internet
+        </button>
+        {% endif %}
+
+        {% if message %}
+        <div style="color: var(--text-dim); font-size: 13px; padding: 6px 12px;
+                    background: rgba(255,255,255,0.05); border-radius: 6px;">
+            {{ message }}
+        </div>
+        {% endif %}
+
+        {% if job_id %}
+        <a href="/ansible/jobs/{{ job_id }}" class="btn btn-secondary" style="font-size: 13px;">
+            → Zobrazit výstup jobu #{{ job_id }}
+        </a>
+        {% endif %}
+
+    </div>
+
+    <div style="margin-top: 14px; padding: 12px; background: rgba(255,255,255,0.03);
+                border-radius: 6px; font-size: 12px; color: var(--text-dim); line-height: 1.7;">
+        <strong style="color: var(--text);">Jak blokování funguje:</strong>
+        Ansible spustí playbook <code>block_internet.yml</code> na cílovém počítači,
+        který přidá pravidla do lokálního firewallu (nftables/iptables na Linux,
+        Windows Defender FW na Windows). Počítač nemůže navázat spojení na non-RFC1918 adresy.
+        DNS na vnitřní doménu ({{ request.app.state.config.domain.realm }}) zůstane funkční.
+    </div>
+</div>

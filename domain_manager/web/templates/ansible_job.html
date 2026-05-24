@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Job #{{ job.id }} — Ansible — Domain Manager{% endblock %}
+
+{% block content %}
+<div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px;">
+    <a href="/ansible" style="color: var(--text-dim); text-decoration: none;">← Ansible</a>
+    <h1 style="margin: 0;">Job #{{ job.id }}</h1>
+    <span class="badge {{ job.status }}">{{ job.status }}</span>
+</div>
+
+<div class="card" style="display: flex; gap: 32px; flex-wrap: wrap; padding: 16px 20px; margin-bottom: 16px;">
+    <div>
+        <div style="color: var(--text-dim); font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Playbook</div>
+        <div style="font-weight: 600;">{{ job.playbook }}</div>
+    </div>
+    <div>
+        <div style="color: var(--text-dim); font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Limit</div>
+        <div>{{ job.limit }}</div>
+    </div>
+    <div>
+        <div style="color: var(--text-dim); font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Spuštěno</div>
+        <div>{{ job.started_at }}</div>
+    </div>
+    {% if job.finished_at %}
+    <div>
+        <div style="color: var(--text-dim); font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Dokončeno</div>
+        <div>{{ job.finished_at }}</div>
+    </div>
+    <div>
+        <div style="color: var(--text-dim); font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Trvání</div>
+        <div>{{ job.duration }}</div>
+    </div>
+    <div>
+        <div style="color: var(--text-dim); font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Return code</div>
+        <div style="font-family: monospace;">{{ job.return_code }}</div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="card" style="padding: 16px;">
+    <h3 style="margin-bottom: 12px;">Výstup</h3>
+
+    {% include "ansible_output_fragment.html" %}
+</div>
+{% endblock %}

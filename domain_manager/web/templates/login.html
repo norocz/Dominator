@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Přihlášení - Domain Manager{% endblock %}
+{% block content %}
+<div style="max-width: 360px; margin: 80px auto;">
+    <div class="card">
+        <h2>Přihlášení do Domain Manageru</h2>
+        {% if request.query_params.get('error') %}
+        <div style="color: var(--danger); margin-bottom: 12px;">
+            Neplatné přihlašovací údaje.
+        </div>
+        {% endif %}
+        <form action="/login" method="post">
+            <div style="margin-bottom: 12px;">
+                <label>Uživatelské jméno</label>
+                <input name="username" autofocus required>
+            </div>
+            <div style="margin-bottom: 16px;">
+                <label>Heslo</label>
+                <input name="password" type="password" required>
+            </div>
+            <button type="submit" style="width: 100%;">Přihlásit</button>
+        </form>
+        <p style="color: var(--text-dim); margin-top: 16px; font-size: 12px;">
+            Použijte své AD doménové přihlašovací údaje.
+        </p>
+    </div>
+</div>
+{% endblock %}

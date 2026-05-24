@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block title %}Skupiny — Domain Manager{% endblock %}
+
+{% block head_extra %}
+<style>
+.group-table td { vertical-align: middle; }
+.group-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.group-actions button { padding: 5px 12px; font-size: 12px; }
+.kind-badge {
+    display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px;
+    background: rgba(74,158,255,0.15); color: var(--accent);
+}
+.kind-badge.user { background: rgba(16,185,129,0.15); color: var(--success); }
+#create-form-panel, #csv-panel { display: none; }
+#create-form-panel.open, #csv-panel.open { display: block; }
+.form-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.form-row .field { display: flex; flex-direction: column; gap: 4px; }
+.form-row label { font-size: 12px; color: var(--text-dim); }
+.form-row input, .form-row select { width: auto; min-width: 160px; font-size: 13px; padding: 6px 10px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+    <h1 style="margin: 0;">Skupiny</h1>
+    <span style="color: var(--text-dim); font-size: 13px;">({{ groups | length }})</span>
+    <div style="flex:1"></div>
+    <button onclick="document.getElementById('create-form-panel').classList.toggle('open')"
+        style="font-size: 13px; padding: 6px 14px;">
+        + Nová skupina AD
+    </button>
+    <button onclick="document.getElementById('csv-panel').classList.toggle('open')"
+        style="font-size: 13px; padding: 6px 14px; background: var(--border); color: var(--text);">
+        &#x2191; Import CSV
+    </button>
+</div>
+
+<!-- Formulář: nová skupina -->
+<div id="create-form-panel" class="card" style="margin-bottom: 12px; padding: 16px 20px;">
+    <div style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">Nová skupina AD</div>
+    <div id="group-msg"></div>
+    <form hx-post="/groups" hx-target="#group-msg" hx-swap="innerHTML">
+        <div class="form-row">
+            <div class="field">
+                <label>Název skupiny *</label>
+                <input name="name" type="text" placeholder="např. Ucitele" required>
+            </div>
+            <div class="field">
+                <label>Typ</label>
+                <select name="kind">
+                    <option value="computer">Počítače</option>
+                    <option value="user">Uživatelé</option>
+                </select>
+            </div>
+            <div class="field" style="flex:1; min-width:200px;">
+                <label>Popis (volitelné)</label>
+                <input name="description" type="text" placeholder="Stručný popis skupiny">
+            </div>
+            <button type="submit" style="padding: 6px 18px; align-self: flex-end;">Vytvořit</button>
+        </div>
+        <p style="font-size: 11px; color: var(--text-dim); margin: 8px 0 0;">
+            Skupina bude vytvořena v lokální databázi i v Active Directory
+            (vyžaduje spuštění aplikace na DC).
+        </p>
+    </form>
+</div>
+
+<!-- Formulář: CSV import -->
+<div id="csv-panel" class="card" style="margin-bottom: 12px; padding: 16px 20px;">
+    <div style="font-size: 14px; font-weight: 600; margin-bottom: 8px;">Import skupin z CSV</div>
+    <div id="import-result"></div>
+    <form hx-post="/groups/import-csv" hx-target="#import-result" hx-swap="innerHTML" hx-encoding="multipart/form-data">
+        <div class="form-row" style="align-items:center;">
+            <input type="file" name="file" accept=".csv,.txt" required
+                style="width:auto; background:transparent; border:none; padding:0; font-size:13px;">
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; white-space:nowrap;">
+                <input type="checkbox" name="sync_ad" value="1" style="width:auto;">
+                Synchronizovat s AD
+            </label>
+            <button type="submit" style="padding: 6px 18px;">Importovat</button>
+        </div>
+    </form>
+    <p style="font-size: 11px; color: var(--text-dim); margin: 8px 0 0;">
+        Formát CSV: <code>name,kind,description</code> — kind = <code>computer</code> nebo <code>user</code>.
+        Záhlaví je volitelné. Existující skupiny jsou přeskočeny.
+    </p>
+</div>
+
+<div id="group-result"></div>
+
+{% if not groups %}
+<div class="card">
+    <p style="color: var(--text-dim); margin: 0;">
+        Žádné skupiny v databázi. Vytvořte první skupinu tlačítkem výše nebo importujte CSV.
+    </p>
+</div>
+{% else %}
+<div class="card" style="padding: 0; overflow: hidden;">
+<table class="group-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
+    <thead>
+        <tr>
+            <th style="padding: 10px; text-align: left; color: var(--text-dim); font-size: 12px; text-transform: uppercase; border-bottom: 1px solid var(--border);">Název</th>
+            <th style="padding: 10px; text-align: left; color: var(--text-dim); font-size: 12px; text-transform: uppercase; border-bottom: 1px solid var(--border);">Typ</th>
+            <th style="padding: 10px; text-align: left; color: var(--text-dim); font-size: 12px; text-transform: uppercase; border-bottom: 1px solid var(--border);">Popis</th>
+            <th style="padding: 10px; text-align: center; color: var(--text-dim); font-size: 12px; text-transform: uppercase; border-bottom: 1px solid var(--border);">Počítače</th>
+            <th style="padding: 10px; text-align: center; color: var(--text-dim); font-size: 12px; text-transform: uppercase; border-bottom: 1px solid var(--border);">Internet</th>
+            <th style="padding: 10px; border-bottom: 1px solid var(--border);"></th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for g in groups %}
+    <tr style="border-bottom: 1px solid var(--border);">
+        <td style="padding: 10px; font-weight: 500;">{{ g.name }}</td>
+        <td style="padding: 10px;">
+            <span class="kind-badge {% if g.kind == 'user' %}user{% endif %}">
+                {{ 'Uživatelé' if g.kind == 'user' else 'Počítače' }}
+            </span>
+        </td>
+        <td style="padding: 10px; color: var(--text-dim); font-size: 12px;">{{ g.description or '—' }}</td>
+        <td style="padding: 10px; text-align: center;">
+            {% if g.kind == 'computer' %}
+                <span style="font-weight: 600;">{{ g.computer_count }}</span>
+                {% if g.blocked_count > 0 %}
+                <span style="font-size: 11px; color: var(--danger); margin-left: 4px;">({{ g.blocked_count }}× 🚫)</span>
+                {% endif %}
+            {% else %}—{% endif %}
+        </td>
+        <td style="padding: 10px; text-align: center;">
+            {% if g.kind == 'computer' %}
+                {% if g.computer_count == 0 %}
+                    <span style="color: var(--text-dim); font-size: 12px;">—</span>
+                {% elif g.blocked_count == g.computer_count %}
+                    <span class="badge failed">vše blokováno</span>
+                {% elif g.blocked_count > 0 %}
+                    <span class="badge warning">{{ g.blocked_count }}/{{ g.computer_count }} blokováno</span>
+                {% else %}
+                    <span class="badge success">vše povoleno</span>
+                {% endif %}
+            {% else %}—{% endif %}
+        </td>
+        <td style="padding: 10px;">
+            <div class="group-actions">
+                {% if g.kind == 'computer' and g.computer_count != '—' and g.computer_count > 0 %}
+                <button
+                    hx-post="/groups/{{ g.id }}/internet-block"
+                    hx-target="#group-result"
+                    hx-swap="innerHTML"
+                    style="background: var(--danger);"
+                    title="Zablokovat internet pro všechny počítače ve skupině">
+                    🚫 Blokovat
+                </button>
+                <button
+                    hx-post="/groups/{{ g.id }}/internet-unblock"
+                    hx-target="#group-result"
+                    hx-swap="innerHTML"
+                    style="background: var(--success);"
+                    title="Odblokovat internet pro všechny počítače ve skupině">
+                    ✓ Odblokovat
+                </button>
+                {% endif %}
+                <form method="post" action="/groups/{{ g.id }}/delete"
+                    onsubmit="return confirmDelete('{{ g.name }}')"
+                    style="display:inline; margin:0;">
+                    <input type="hidden" name="delete_from_ad" value="1">
+                    <button type="submit" class="btn-danger"
+                        style="font-size: 11px; padding: 4px 10px;"
+                        title="Smazat skupinu z DB i AD">
+                        Smazat
+                    </button>
+                </form>
+            </div>
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endif %}
+
+<div class="card" style="margin-top: 16px; padding: 14px 20px;">
+    <strong>Blokování internetu pro skupinu</strong> spustí Ansible playbook
+    <code>block_internet.yml</code> na všech počítačích ve skupině paralelně.
+    Výsledek každého jobu najdete v sekci <a href="/ansible" style="color: var(--accent);">Ansible → Joby</a>.
+</div>
+
+<script>
+function confirmDelete(name) {
+    return confirm('Opravdu smazat skupinu "' + name + '"?\n\nBude odstraněna z databáze i z Active Directory.');
+}
+</script>
+{% endblock %}
