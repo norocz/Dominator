@@ -144,6 +144,8 @@
     <a href="#zalohy">Zálohy</a>
     <a href="#zdravi">Zdraví systému</a>
     <a href="#audit">Audit log</a>
+    <a href="#pripojeni">Připojení klientů</a>
+    <a href="#pristup">Přístup k administraci</a>
     <a href="#cli">CLI příkazy</a>
 </div>
 
@@ -171,6 +173,14 @@
         pracujete s ukázkovými daty. Demo je určeno pro testování UI bez reálného AD serveru.
         Spustíte jej pomocí <code>DM_DEMO=1 dm web start</code>.
     </p>
+    <h3>Důležité při instalaci přes SSH</h3>
+    <div class="warn">
+        Instalátor nastaví <strong>statickou IP</strong> přes netplan a zavolá <code>netplan apply</code>.
+        Pokud byl stroj před instalací na DHCP, IP adresa se změní — SSH spojení na starou adresu se přeruší.
+        Instalátor před touto operací zobrazí varování a 10 sekund čeká, abyste se stihli připojit na novou adresu.<br><br>
+        <strong>Samba AD DC NESPOUŠTÍ DHCP server.</strong> Kea DHCP je samostatná komponenta — stávající DHCP
+        server v síti nevypínejte dříve, než nainstalujete a spustíte Kea.
+    </div>
 </section>
 
 <!-- Přehled -->
@@ -429,6 +439,98 @@ PC-Ucebna2,computer,Počítače v učebně 2</pre>
         <li><strong>Export</strong> — záznamy lze exportovat jako CSV</li>
     </ul>
     <div class="tip">Audit log sleduje pouze akce provedené přes webové rozhraní. Přímé změny v AD (přes RSAT, samba-tool) se zde nezobrazí.</div>
+</section>
+
+<!-- Připojení klientů do domény -->
+<section class="help-section" id="pripojeni">
+    <h2>🔗 Připojení klientů do domény</h2>
+    <p>
+        Aby se počítač mohl přihlašovat AD účty, musí být připojen do domény.
+        Předpokladem je, že DC1 běží a klient ho vidí na síti.
+    </p>
+    <div class="warn">
+        <strong>DNS je klíčový.</strong> Klient musí mít jako primární DNS server nastavenou IP adresu DC1
+        (ne 8.8.8.8). Bez toho nelze doménu vůbec najít. Nastavte v DHCP serveru (Kea) pole
+        <code>domain-name-servers</code> na IP DC1.
+    </div>
+
+    <h3>Windows — připojení k doméně</h3>
+    <ol>
+        <li>Ujistěte se, že DNS klienta ukazuje na DC1 (viz výše)</li>
+        <li>Otevřete <strong>Systém</strong> → <strong>Název počítače</strong> → <strong>Změnit nastavení</strong></li>
+        <li>Klikněte <strong>Změnit…</strong> → zaškrtněte <strong>Doména</strong> → zadejte realm, např. <code>ATELIER.LOCAL</code></li>
+        <li>Zadejte přihlašovací údaje <strong>Administrator</strong> nebo jiného člena Domain Admins</li>
+        <li>Po úspěchu restartujte počítač</li>
+        <li>Na přihlašovací obrazovce zvolte <strong>Jiný uživatel</strong> → přihlaste se doménovým účtem</li>
+    </ol>
+    <div class="tip">
+        Příkazový řádek (jako admin): <code>netdom join %computername% /domain:ATELIER.LOCAL /userd:Administrator /passwordd:*</code>
+    </div>
+
+    <h3>Linux (Ubuntu/Debian) — realm join</h3>
+    <p>Nejjednodušší metoda přes balíček <code>realmd</code> + <code>sssd</code>:</p>
+    <pre>sudo apt install -y realmd sssd sssd-tools adcli packagekit
+sudo realm discover ATELIER.LOCAL          # ověří dosažitelnost domény
+sudo realm join ATELIER.LOCAL -U Administrator</pre>
+    <p>Po úspěšném joinu ověřte:</p>
+    <pre>realm list                                 # zobrazí doménu a stav
+id novakj@atelier.local                    # ověří AD uživatele</pre>
+    <p>Povolení přihlášení bez @domain přípony (volitelné):</p>
+    <pre># /etc/sssd/sssd.conf — přidat do [domain/ATELIER.LOCAL]:
+use_fully_qualified_names = False
+fallback_homedir = /home/%u
+sudo systemctl restart sssd</pre>
+
+    <h3>Ověření připojení</h3>
+    <pre># Na DC1:
+samba-tool computer list                   # nový počítač by se měl zobrazit
+samba-tool domain info 127.0.0.1          # stav domény</pre>
+    <div class="tip">
+        Počítač se po doménové joinu automaticky zobrazí v sekci <a href="/computers" style="color:var(--accent)">Počítače</a>
+        (pokud je zapnutá synchronizace s AD).
+    </div>
+</section>
+
+<!-- Přístup k administraci -->
+<section class="help-section" id="pristup">
+    <h2>🔑 Přístup k administraci</h2>
+    <p>
+        Webové rozhraní Domain Manageru používá přihlašování přes <strong>Active Directory</strong>.
+        Žádná samostatná databáze uživatelů neexistuje — používají se doménové účty.
+    </p>
+    <h3>Kdo může přistoupit</h3>
+    <p>
+        Přihlásit se mohou pouze uživatelé, kteří jsou členem jedné z těchto AD skupin:
+    </p>
+    <ul>
+        <li><strong>Domain Admins</strong> — výchozí skupina správců domény, existuje automaticky</li>
+        <li><strong>DM-Admins</strong> — volitelná skupina pro administrátory bez plných AD admin práv; vytvořte ji pokud chcete delegovat přístup</li>
+    </ul>
+    <div class="tip">
+        Vytvoření skupiny DM-Admins a přidání uživatele:
+        <pre style="margin-top: 8px;">samba-tool group add DM-Admins
+samba-tool group addmembers DM-Admins novakj</pre>
+        Nebo přes webové rozhraní: <a href="/groups" style="color:var(--accent)">Skupiny</a> → <strong>+ Nová skupina AD</strong>.
+    </div>
+    <h3>Jak funguje přihlášení</h3>
+    <ol>
+        <li>Zadáte doménové uživatelské jméno (bez <code>@doména</code>) a heslo</li>
+        <li>Server ověří heslo přes <strong>NTLM bind</strong> na DC1 (LDAP port 389)</li>
+        <li>Pokud heslo sedí, ověří členství v povolených skupinách</li>
+        <li>Při úspěchu se vytvoří podepsaný session cookie (platnost dle konfigurace)</li>
+    </ol>
+    <h3>Resetování hesla uživatele</h3>
+    <p>Heslo lze resetovat přes sekci <a href="/users" style="color:var(--accent)">Uživatelé</a> → akce uživatele → <strong>Změnit heslo</strong>. Vyžaduje to přihlášení s admin právy (Domain Admins).</p>
+    <div class="warn">
+        Pokud se přihlásíte platným AD heslem, ale dostanete zprávu o nedostatečném oprávnění,
+        váš účet není v žádné z povolených skupin. Přidejte ho přes <code>samba-tool</code> nebo
+        z webového rozhraní (přihlásit se musí nejprve Domain Admin).
+    </div>
+    <h3>Demo režim</h3>
+    <p>
+        V demo režimu (<code>DM_DEMO=1</code>) se přijmou jakékoliv přihlašovací údaje bez ověření AD.
+        Vhodné pro testování UI bez reálného serveru. Všechny write operace jsou v demo módu blokovány.
+    </p>
 </section>
 
 <!-- CLI -->

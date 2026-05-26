@@ -4,7 +4,13 @@
 <div style="max-width: 360px; margin: 80px auto;">
     <div class="card">
         <h2>Přihlášení do Domain Manageru</h2>
-        {% if request.query_params.get('error') %}
+        {% set err = request.query_params.get('error') %}
+        {% if err == 'unauthorized' %}
+        <div style="color: var(--warning); margin-bottom: 12px; font-size: 13px;">
+            Přihlášení proběhlo, ale váš účet nemá přístup k administraci.<br>
+            Musíte být členem skupiny <strong>Domain Admins</strong> nebo <strong>DM-Admins</strong>.
+        </div>
+        {% elif err %}
         <div style="color: var(--danger); margin-bottom: 12px;">
             Neplatné přihlašovací údaje.
         </div>
