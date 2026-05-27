@@ -8,14 +8,13 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from ...db.models import Computer, ComputerGroupMembership, Group, get_session
 from ...ansible.runner import AnsibleRunner
 from .._audit import log_action
 
 router = APIRouter(prefix="/groups")
-templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
+from .._templates import templates
 
 _DEMO_MODE = os.environ.get("DM_DEMO", "0") == "1"
 

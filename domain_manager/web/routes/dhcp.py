@@ -10,15 +10,16 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from urllib.parse import quote as _url_quote
+
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from ...db.models import Computer, get_session
 from ...dhcp.client import KeaClient, KeaError, make_client
 
 router = APIRouter(prefix="/dhcp")
-templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
+from .._templates import templates
 
 _DEMO_MODE = os.environ.get("DM_DEMO", "0") == "1"
 
@@ -98,7 +99,7 @@ def dhcp_add_reservation(
         try:
             kea.add_reservation(mac, ip, hostname)
         except KeaError as e:
-            return RedirectResponse(f"/dhcp?error={str(e)[:80]}", status_code=303)
+            return RedirectResponse(f"/dhcp?error={_url_quote(str(e)[:120])}", status_code=303)
 
     # Pokud v DB existuje počítač s tímto hostname nebo MAC, doplníme ip_reserved
     with get_session() as session:
@@ -133,7 +134,7 @@ def dhcp_delete_reservation(
         try:
             kea.delete_reservation(mac)
         except KeaError as e:
-            return RedirectResponse(f"/dhcp?error={str(e)[:80]}", status_code=303)
+            return RedirectResponse(f"/dhcp?error={_url_quote(str(e)[:120])}", status_code=303)
 
     return RedirectResponse("/dhcp", status_code=303)
 

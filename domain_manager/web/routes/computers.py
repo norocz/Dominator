@@ -19,7 +19,6 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from ...db.models import Computer, get_session
 from ...db.queries import ComputerQuery
@@ -29,7 +28,7 @@ from .._audit import log_action
 _DEMO_MODE = os.environ.get("DM_DEMO", "0") == "1"
 
 router = APIRouter(prefix="/computers")
-templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
+from .._templates import templates
 
 
 def _require_user(request: Request):
@@ -366,6 +365,7 @@ async def computers_import_csv(
         try:
             session.commit()
         except Exception as e:
+            session.rollback()
             errors.append(str(e))
 
     if ad_client:

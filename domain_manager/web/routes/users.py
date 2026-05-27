@@ -19,14 +19,13 @@ import io
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from ...db.models import Group, User, UserGroupMembership, get_session
 from ...db.queries import UserQuery
 from .._audit import log_action
 
 router = APIRouter(prefix="/users")
-templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
+from .._templates import templates
 
 _DEMO_MODE = os.environ.get("DM_DEMO", "0") == "1"
 
@@ -300,6 +299,9 @@ async def users_import_csv(
         except Exception:
             pass
 
+    # Mapování username → data pro pozdější AD sync (původní kód měl prázdný seznam)
+    rows_by_username: dict[str, dict] = {}
+
     with get_session() as session:
         for row in reader:
             data: dict = {}
@@ -322,6 +324,8 @@ async def users_import_csv(
                 skipped.append(username)
                 continue
 
+            rows_by_username[username] = data
+
             existing = session.query(User).filter(User.username == username).first()
             if existing:
                 for k, v in data.items():
@@ -329,22 +333,21 @@ async def users_import_csv(
                         setattr(existing, k, v)
                 updated.append(username)
             else:
-                u_obj = User(created_by=user, **data)
+                u_obj = User(created_by=user, updated_by=user, **data)
                 session.add(u_obj)
                 created.append(username)
 
         try:
             session.commit()
         except Exception as e:
+            session.rollback()
             errors.append(str(e))
 
     if ad_client:
         from ...ad.client import ADUser
         for uname in created:
             try:
-                row_data = next(
-                    (r for r in [] if r.get("username") == uname), {}
-                )
+                row_data = rows_by_username.get(uname, {})
                 ad_client.create_user(ADUser(
                     username=uname,
                     first_name=row_data.get("first_name", uname),

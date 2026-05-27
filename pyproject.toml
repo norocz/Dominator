@@ -22,7 +22,7 @@ dependencies = [
     # Web
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",
-    "jinja2>=3.1",
+    "jinja2>=3.1,<3.2",  # 3.2.x má bug s LRU cache na Python 3.14 (dict v cache_key)
     "python-multipart>=0.0.9",  # uploady
     "itsdangerous>=2.1",     # session cookies
 

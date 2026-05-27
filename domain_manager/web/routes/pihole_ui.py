@@ -7,10 +7,9 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 router = APIRouter(prefix="/pihole")
-templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
+from .._templates import templates
 
 _DEMO_MODE = os.environ.get("DM_DEMO", "0") == "1"
 
@@ -243,8 +242,13 @@ async def adlist_delete(adlist_id: int, request: Request, user: str = Depends(_r
         return HTMLResponse('<tr style="display:none"></tr>')
     cfg = request.app.state.config
     from ...pihole.client import PiholeClient
-    async with PiholeClient(str(cfg.servers.dc1.ip), cfg.pihole.web_port, cfg.pihole.webpassword) as ph:
-        await ph.delete_adlist(adlist_id)
+    try:
+        async with PiholeClient(str(cfg.servers.dc1.ip), cfg.pihole.web_port, cfg.pihole.webpassword) as ph:
+            await ph.delete_adlist(adlist_id)
+    except Exception as e:
+        return HTMLResponse(
+            f'<tr><td colspan="5" style="color:var(--danger);padding:8px">Chyba: {e}</td></tr>'
+        )
     return HTMLResponse('<tr style="display:none"></tr>')
 
 

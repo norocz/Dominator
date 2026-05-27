@@ -6,12 +6,11 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 
 from ...db.models import Computer, Group, User, get_session
 
 router = APIRouter()
-templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
+from .._templates import templates
 
 _DEMO_MODE = os.environ.get("DM_DEMO", "0") == "1"
 

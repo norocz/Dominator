@@ -1,4 +1,4 @@
-# Domain Manager
+# Domain Manager — Dominator
 
 Centrální správa Samba AD domény, DHCP, Pi-hole, monitoringu a klientů
 z jednoho Python prostředí. Cíleno na Ubuntu 26.04 LTS.
@@ -6,13 +6,16 @@ z jednoho Python prostředí. Cíleno na Ubuntu 26.04 LTS.
 ## Co to dělá
 
 - Postaví dvojici Samba AD řadičů domény (DC1 primary, DC2 secondary)
-- Spravuje DHCP (ISC Kea) s MAC → IP rezervacemi
-- Provozuje Pi-hole DNS filter (2 instance s replikací)
-- Sjednocuje monitoring (Prometheus + Grafana + Zabbix)
+- Spravuje DHCP (ISC Kea) s MAC → IP rezervacemi a one-click rezervací z aktivních lease
+- Provozuje Pi-hole DNS filter — správa adlistů, skupin, blokování klientů
+- Sjednocuje monitoring (Prometheus + Grafana + Zabbix + SNMP)
 - Web UI s plánkem budovy, na kterém vidíte rozmístěné PC
-- Hromadný import uživatelů, počítačů a skupin z CSV
+- CRUD správa počítačů, uživatelů a skupin přímo v AD
+- Hromadný import z CSV přes web i CLI (počítače, uživatelé, skupiny)
 - Politiky s dědičností: `computer_group → computer → user_group → user`
 - Volání Ansible playbooků pro vzdálenou konfiguraci klientů
+- Audit log všech akcí provedených přes webové rozhraní
+- Nápověda se sekcí připojení klientů do domény (Windows + Linux)
 
 ## Topologie
 
@@ -51,8 +54,12 @@ z jednoho Python prostředí. Cíleno na Ubuntu 26.04 LTS.
 
 ### 1) Příprava obou serverů
 
-Čistá instalace Ubuntu 26.04 LTS, statická IP přes /etc/netplan nebo přes
-náš instalátor (přepíše ji podle configu).
+Čistá instalace Ubuntu 26.04 LTS. Statická IP nastaví instalátor podle `config.yaml`.
+
+> **Důležité při instalaci přes SSH:** Instalátor při `netplan apply` změní IP
+> z DHCP na statickou — SSH spojení na starou adresu se přeruší. Instalátor
+> před tím zobrazí varování a 10 sekund čeká. **Samba AD DC nespouští DHCP**
+> — stávající DHCP server nevypínejte, dokud nespustíte Kea.
 
 ### 2) Bootstrap
 
@@ -64,9 +71,8 @@ cd /tmp/domain-manager
 sudo ./bootstrap.sh
 ```
 
-Bootstrap udělá pouze: nainstaluje Python, vytvoří virtualenv,
-nainstaluje tento balíček, vytvoří `/etc/domain-manager/config.yaml`
-ze vzoru a vytvoří symlink `/usr/local/bin/dm`.
+Bootstrap: nainstaluje Python, vytvoří virtualenv, nainstaluje balíček,
+vytvoří `/etc/domain-manager/config.yaml` ze vzoru, symlink `/usr/local/bin/dm`.
 
 ### 3) Konfigurace
 
@@ -77,26 +83,23 @@ sudo nano /etc/domain-manager/config.yaml
 sudo dm config validate
 ```
 
-`dm config validate` ověří, že je config konzistentní (IP v subnetu,
-hesla dostatečně silná, FQDN správně, atd.).
-
-### 4) Instalace DC1 (jen na primárním stroji)
+### 4) Instalace DC1 (primární stroj)
 
 ```bash
 sudo dm install dc1
 ```
 
-Tohle:
-- Nastaví hostname, /etc/hosts, netplan podle configu
-- Zastaví konfliktní služby (smbd, nmbd, winbind)
+- Nastaví hostname, `/etc/hosts`, netplan
+- Zakáže `systemd-resolved` stub listener (port 53 pro Samba DNS)
+- Zastaví a maskuje konfliktní služby (smbd, nmbd, winbind)
 - Nainstaluje `samba-ad-dc` a závislosti
 - Spustí `samba-tool domain provision` s parametry z configu
 - Nakonfiguruje Kerberos, chrony, DNS forwarder
 - Spustí `samba-ad-dc` systemd unit
 
-Smoke test: `samba-tool domain info 127.0.0.1`.
+Smoke test: `samba-tool domain info 127.0.0.1`
 
-### 5) Instalace DC2 (jen na sekundárním stroji)
+### 5) Instalace DC2 (sekundární stroj)
 
 DC1 musí být dostupný a běžet. Pak:
 
@@ -104,20 +107,21 @@ DC1 musí být dostupný a běžet. Pak:
 sudo dm install dc2
 ```
 
-Provede `samba-tool domain join` - připojí se do existující domény.
+- Ověří ping a Kerberos port 88 na DC1 před joinem
+- Nastaví statickou DNS na DC1 (nutné pro `samba-tool domain join`)
+- Nakonfiguruje krb5.conf s explicitním KDC (bez DNS SRV lookup)
+- Spustí `samba-tool domain join` a ověří DRS replikaci
 
 ### 6) Doplňkové komponenty
 
-V libovolném pořadí, podle potřeby:
-
 ```bash
 # DC1:
-sudo dm install dhcp         # ISC Kea
+sudo dm install dhcp
 sudo dm install postgres --role primary
 sudo dm install docker
 sudo dm install pihole --instance 1
 sudo dm install firewall
-sudo dm web install-service  # systemd unit pro web
+sudo dm web install-service
 
 # DC2:
 sudo dm install postgres --role standby
@@ -132,95 +136,124 @@ sudo dm install firewall
 ```bash
 sudo systemctl start domain-manager
 # nebo pro vývoj:
-sudo dm web start --reload
+DM_DEMO=1 dm web start --reload
 ```
 
-Otevřete `http://<dc1_ip>:8000/`.
+Otevřete `http://<dc1_ip>:8000/`
+
+## Přihlášení do webového rozhraní
+
+Používá **Active Directory přihlašovací údaje**. Přihlásit se mohou
+pouze členové skupiny `Domain Admins` nebo `DM-Admins`:
+
+```bash
+# Volitelná skupina pro delegovaný přístup (bez plných AD admin práv):
+samba-tool group add DM-Admins
+samba-tool group addmembers DM-Admins <username>
+```
+
+Demo režim (bez AD serveru):
+
+```bash
+DM_DEMO=1 dm web start
+```
+
+## Připojení klientů do domény
+
+**Předpoklad:** klient musí mít jako primární DNS nastavenou IP DC1.
+
+### Windows
+
+1. Systém → Název počítače → Změnit → Doména: `<REALM>` (např. `SKOLA.LOCAL`)
+2. Zadat přihlašovací údaje Domain Admins
+3. Restart
+
+### Linux (Ubuntu/Debian)
+
+```bash
+sudo apt install -y realmd sssd sssd-tools adcli
+sudo realm discover SKOLA.LOCAL
+sudo realm join SKOLA.LOCAL -U Administrator
+```
 
 ## Inventář počítačů
 
-Model `Computer` v DB má 59 sloupců rozdělených do logických bloků
-(identita, síť, hardware, OS, doména, lokace, životní cyklus, monitoring,
-software, vlastní pole). Indexovány jsou sloupce, podle kterých se reálně
-filtruje (hostname, MAC, IP, OS, RAM, oddělení, lokace, stav, atd.).
+Model `Computer` v DB má 59 sloupců. Filtrovatelná tabulka `/computers` podporuje:
 
-**Filtrovatelná tabulka** v `/computers` umí přes URL parametry:
+- Fulltext (`?q=ThinkPad`)
+- Rovnost, porovnání, substring, boolean, řazení, volba sloupců, stránkování
+- Operátory: `__eq` `__ne` `__lt` `__le` `__gt` `__ge` `__in` `__notin`
+  `__contains` `__starts` `__ends` `__is_null` `__not_null`
 
-- Fulltext (`?q=ThinkPad`) — hledá v hostname, S/N, modelu, primárním uživateli, poznámkách…
-- Rovnost (`?os_family=windows&department=Účetní`)
-- Porovnání (`?ram_mb__ge=16384`)
-- Členství (`?form_factor__in=laptop,server`)
-- Substring (`?manufacturer__contains=Lenovo`)
-- Boolean (`?is_online=true`)
-- Řazení (`?sort=-ram_mb`)
-- Volba zobrazených sloupců (`?cols=hostname,os_family,ram_mb,department`)
-- Stránkování (`?page=2&per_page=50`)
-
-Operátory (jako suffix): `__eq` `__ne` `__lt` `__le` `__gt` `__ge`
-`__in` `__notin` `__contains` `__starts` `__ends` `__is_null` `__not_null`.
-
-UI v `/computers` je postavené nad HTMX — změna filtru způsobí refresh
-jen těla tabulky, ne celé stránky, a URL se aktualizuje (bookmark/sdílení
-odkazu funguje).
-
-## Ukázková data
-
-V `examples/`:
-
-- `groups.csv` — 11 skupin (uživatelské + počítačové)
-- `users.csv` — 5 uživatelů s kontakty
-- `computers.csv` — 8 počítačů s plným inventářem (HW, OS, lokace, životní cyklus)
-
-Postup nasazení ukázky:
+## Import z CSV
 
 ```bash
-sudo dm import groups examples/groups.csv
-sudo dm import users examples/users.csv --apply
-sudo dm import computers examples/computers.csv --apply
-```
-
-
-
-## Hromadný import z CSV
-
-```bash
-# Nejdřív skupiny:
+# CLI:
 sudo dm import groups groups.csv
-
-# Pak uživatele a počítače (skupiny musí existovat):
 sudo dm import users users.csv --apply
 sudo dm import computers computers.csv --apply
 ```
 
-Bez `--apply` běží v dry-run režimu - vypíše náhled, nic neuloží.
+Bez `--apply` je dry-run. Import funguje i přes web UI (tlačítko **↑ Import CSV**).
 
-Formáty CSV viz `/opt/domain-manager/domain_manager/ad/importers.py`
-(docstring na začátku souboru).
+### Formát CSV — počítače
+
+Povinný sloupec: `hostname`. Ostatní volitelné.
+
+```
+hostname,mac,ip,department,building,floor,room,os_family,primary_user,warranty_until
+pc-01,aa:bb:cc:dd:ee:01,192.168.10.101,Učebny,A,0,U01,windows,novak,2027-06-30
+```
+
+### Formát CSV — uživatelé
+
+Povinné: `username`, `first_name`, `last_name`.
+
+```
+username,first_name,last_name,email,phone,department,job_title,manager
+novakj,Jan,Novák,novak@skola.cz,+420123456789,Učitelé,Učitel,rednik
+```
+
+### Formát CSV — skupiny
+
+```
+name,kind,description
+Ucitele,user,Skupina učitelů
+PC-Ucebna1,computer,Počítače v učebně 1
+```
+
+Záhlaví lze psát česky i anglicky. Existující záznamy se aktualizují (upsert).
 
 ## Adresářová struktura
 
 ```
-/opt/domain-manager/            # instalace
+/opt/domain-manager/
 ├── bootstrap.sh
 ├── pyproject.toml
 ├── config.yaml.example
-├── .venv/                       # virtualenv (vytvoří bootstrap)
+├── .venv/
 └── domain_manager/
     ├── cli.py                   # `dm` příkaz
     ├── config.py                # validace config.yaml
     ├── runner.py                # spouštění shell + logy
-    ├── installers/              # instalátory komponent
-    ├── ad/                      # AD klient + import + politiky
-    ├── db/                      # SQLAlchemy modely
-    ├── web/                     # FastAPI app + šablony
+    ├── installers/              # DC1, DC2, Kea, Pi-hole, PG, Docker, FW...
+    ├── ad/                      # AD klient (ldap3 + samba-tool) + importéři
+    ├── db/                      # SQLAlchemy modely (Computer 59 sl., User 27 sl.)
+    ├── web/
+    │   ├── app.py               # FastAPI aplikace
+    │   ├── _templates.py        # sdílená Jinja2Templates instance
+    │   ├── _audit.py            # audit log helper
+    │   ├── routes/              # endpoints (computers, users, groups, dhcp, ...)
+    │   ├── templates/           # Jinja2 šablony
+    │   └── static/              # vendor JS/CSS (htmx, CodeMirror) — vše lokální
     └── ansible/                 # playbooky pro klienty
 
 /etc/domain-manager/
-└── config.yaml                  # běžící konfigurace (chmod 600)
+└── config.yaml                  # (chmod 600, obsahuje hesla)
 
 /var/lib/domain-manager/
 ├── uploads/                     # nahrané plánky budov
-└── ansible/                     # invertáře + playbooky
+└── ansible/                     # inventáře + playbooky
 
 /var/log/domain-manager/
 └── dm.log
@@ -228,61 +261,76 @@ Formáty CSV viz `/opt/domain-manager/domain_manager/ad/importers.py`
 
 ## Roadmap
 
-### Fáze 1 - Kostra (HOTOVO)
+### Fáze 1 — Kostra ✅
+
 - [x] Bootstrap, CLI, config validace
-- [x] Instalátor DC1 (Samba AD primary)
-- [x] Instalátor DC2 (Samba AD join)
+- [x] Instalátor DC1 (Samba AD primary) + oprava port 53 / SSH disconnect
+- [x] Instalátor DC2 (Samba AD join) + oprava kinit / KDC lookup
 - [x] Instalátory Docker, Pi-hole, monitoring, Kea, FW, PostgreSQL
-- [x] AD klient (samba-tool + LDAP3)
+- [x] AD klient (samba-tool + ldap3)
 - [x] CSV importéři (users, computers, groups) s upsert do AD i DB
-- [x] DB modely (SQLAlchemy) — Computer má 59 sloupců, User 27
+- [x] DB modely (SQLAlchemy) — Computer 59 sl., User 27 sl.
 - [x] Engine pro dědičnost politik (computer_group → computer → user_group → user)
 - [x] Kostra FastAPI webu (login + dashboard)
-- [x] **Filtrovatelná tabulka inventáře** s HTMX (10+ operátorů, řazení, volba sloupců)
-- [x] **Detail počítače** s editačními poli
+- [x] Filtrovatelná tabulka inventáře s HTMX (10+ operátorů, řazení, volba sloupců)
+- [x] Detail počítače s editačními poli
 - [x] Ukázková data v `examples/`
 
-### Fáze 2 - Web UI (zbývá)
-- [ ] CRUD: uživatelé, skupiny (analogicky k computers)
-- [ ] Upload a editace plánků budov
-- [ ] Drag & drop ikon zařízení na plánek
-- [ ] Live HW info z Prometheus (CPU, RAM, disk)
-- [ ] Proklik do Grafany pro detailní graf
-- [ ] Editor politik (formuláře per kind)
+### Fáze 2 — Web UI ✅
 
-### Fáze 3 - Integrace
-- [ ] DHCP rezervace přes Kea Control Agent API
-- [ ] Pi-hole API klient (přidání/odebrání klientů, blocklistů)
-- [ ] Prometheus query klient (HW info, last_seen)
-- [ ] Ansible runner s real-time logy v UI
-- [ ] Replikace Pi-hole přes gravity-sync
+- [x] CRUD uživatelé — vytvoření, editace, smazání, přiřazení do skupin
+- [x] CRUD skupiny — vytvoření, smazání, AD sync přes samba-tool
+- [x] CSV import přes web UI — počítače, uživatelé, skupiny (tlačítko v záhlaví)
+- [x] Upload a editace plánků budov (SVG/PNG/JPG)
+- [x] Drag & drop ikon zařízení na plánek, kontextové menu, info panel
+- [x] Blokování internetu počítači / skupinám (Ansible + Pi-hole)
+- [x] Editor politik (formuláře per kind, dědičnost v UI)
 
-### Fáze 4 - Polish
+### Fáze 3 — Integrace ✅
+
+- [x] DHCP rezervace přes Kea Control Agent API (list, add, delete)
+- [x] One-click "Rezervovat" z tabulky aktivních lease
+- [x] Sync Kea rezervací → DB počítačů
+- [x] Pi-hole API klient — skupiny, klienti, blokování/odblokování
+- [x] Pi-hole adlisty — přidání, odebrání, zapnutí/vypnutí, preset knihovna (14 listů)
+- [x] Gravity update s HTMX in-page statusem
+- [x] Ansible runner s real-time výstupem jobů v UI
+- [x] Editor playbooků (CodeMirror + YAML, snippety, save/delete)
+- [x] SNMP klient pro switche a routerboard (monitoring stavu portů)
+
+### Fáze 4 — Polish ✅ (částečně)
+
+- [x] Audit log v UI — filtrování, export CSV
+- [x] Backup/restore tlačítko (DB dump + config)
+- [x] Zdraví systému — ping, porty, latence (DC1, DC2, Pi-hole, DHCP)
+- [x] Správa TLS certifikátů — přehled, platnost, upozornění
+- [x] Nápověda `/help` — 17 sekcí, sticky TOC, scroll tracking
+- [x] Přihlašování přes AD s kontrolou skupiny (Domain Admins / DM-Admins)
+- [ ] Live HW info z Prometheus v detailu počítače (CPU, RAM, disk)
+- [ ] Proklik do Grafany pro detailní grafy
 - [ ] PostgreSQL hot standby kompletně automaticky
 - [ ] Automatický failover (Patroni nebo manuálně přes UI)
-- [ ] Audit log v UI
-- [ ] Backup/restore tlačítko (DB dump + samba backup + pihole)
-- [ ] SNMP klient pro switche a routerboard
+- [ ] Replikace Pi-hole přes gravity-sync
 
 ## Bezpečnostní poznámky
 
 - `/etc/domain-manager/config.yaml` má chmod 600 a obsahuje hesla.
-  Pro produkční nasazení doporučuju načítat hesla z env nebo HashiCorp
-  Vaultu (TODO).
-- Web UI defaultně poslouchá na 0.0.0.0:8000 - omezte přes firewall
-  jen na admin síť.
-- Login do webu používá AD bind. Doporučuju vytvořit skupinu `DM-Admins`
-  a kontrolovat členství (TODO v `routes/auth.py`).
-- Hesla v CSV při importu jsou nouzové řešení. Lepší: prázdné heslo →
-  importér vygeneruje silné a vypíše do souboru, který předáte uživatelům.
+  Pro produkci doporučujeme načítat hesla z env nebo HashiCorp Vault.
+- Web UI poslouchá na `0.0.0.0:8000` — omezte přes firewall jen na admin síť.
+- Přihlášení vyžaduje členství v `Domain Admins` nebo `DM-Admins`.
+  Řadoví AD uživatelé se přihlásit nemohou.
+- Hesla v CSV při importu jsou nouzové řešení — lepší je vygenerovat silné
+  heslo automaticky a předat ho uživateli odděleně.
+- Jinja2 `cache_size=0` je workaround pro bug v Jinja2 3.2.x na Python 3.14
+  (dict v LRU cache key). Pin závislosti: `jinja2>=3.1,<3.2`.
 
 ## Co tu schválně NENÍ
 
 - **Žádný Bash kromě `bootstrap.sh`.** Vše ostatní řídí Python.
-- **Žádný JavaScript framework.** Web je server-rendered Jinja + HTMX
-  pro interaktivitu. Méně závislostí, méně problémů.
+- **Žádný JavaScript framework.** Web je server-rendered Jinja2 + HTMX.
+  Všechny vendor závislosti jsou lokální (`static/vendor/`) — funguje offline.
 - **Žádná abstraktní pluginová architektura.** Konkrétní instalátory,
-  konkrétní modely. Snazší na pochopení.
+  konkrétní modely. Snazší na pochopení a ladění.
 
 ## Vývojové prostředí
 
@@ -290,6 +338,10 @@ Formáty CSV viz `/opt/domain-manager/domain_manager/ad/importers.py`
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
+
+# Demo bez AD serveru:
+DM_DEMO=1 dm web start --reload
+
 ruff check .
 pytest
 ```
