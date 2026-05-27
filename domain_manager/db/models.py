@@ -387,6 +387,39 @@ class BackupRecord(Base):
     created_by: Mapped[Optional[str]] = mapped_column(String(64))
 
 
+# --- ansible akce ----------------------------------------------------------
+
+class AnsibleAction(Base):
+    """Pojmenovaná Ansible akce uložená v DB (nezávislá na souborovém systému)."""
+    __tablename__ = "ansible_actions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), unique=True)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    category: Mapped[str] = mapped_column(String(64), default="Obecné")
+    # Čárkou oddělené typy cílů: computer,computer_group,user,user_group
+    targets: Mapped[str] = mapped_column(String(128), default="computer,computer_group")
+    playbook: Mapped[str] = mapped_column(Text, nullable=False)
+    is_builtin: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_by: Mapped[Optional[str]] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now_utc, onupdate=_now_utc)
+
+    def targets_list(self) -> list[str]:
+        return [t.strip() for t in self.targets.split(",") if t.strip()]
+
+    def as_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description or "",
+            "category": self.category,
+            "targets": self.targets,
+            "targets_list": self.targets_list(),
+            "is_builtin": self.is_builtin,
+            "playbook": self.playbook,
+        }
+
+
 # --- audit log -------------------------------------------------------------
 
 class AuditEntry(Base):

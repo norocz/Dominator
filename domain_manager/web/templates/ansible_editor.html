@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ filename or "Nový playbook" }} — Ansible editor{% endblock %}
+{% block title %}{% if is_action %}{{ action.name or "Nová akce" }}{% else %}{{ filename or "Nový playbook" }}{% endif %} — Ansible editor{% endblock %}
 
 {% block head_extra %}
 <!-- CodeMirror 5 (lokální kopie — funguje i bez internetu) -->
@@ -183,6 +183,53 @@ main { padding: 0 !important; display: flex; flex-direction: column; height: cal
 <div class="editor-topbar">
     <a href="/ansible" style="color:var(--text-dim); text-decoration:none; font-size:13px; white-space:nowrap;">← Ansible</a>
 
+    {% if is_action %}
+    {# ── Akce režim ── #}
+    <form id="save-form" method="post" action="/ansible/actions/save" style="display:contents;">
+        <input type="hidden" name="content" id="content-hidden">
+        <input type="hidden" name="action_id" value="{{ action.id or '' }}">
+        <input type="hidden" name="targets" id="targets-hidden" value="{{ action.targets or 'computer,computer_group' }}">
+
+        <input class="filename-input" type="text" name="name" id="filename-input"
+               placeholder="Název akce" value="{{ action.name or '' }}" required
+               style="max-width: 220px;">
+
+        <select name="category" style="width:auto; font-size:13px; padding:5px 8px; background:var(--bg); border:1px solid var(--border); border-radius:5px; color:var(--text);">
+            {% for cat in ['Windows','Linux','Active Directory','Síť','Obecné'] %}
+            <option value="{{ cat }}" {% if action.category == cat %}selected{% endif %}>{{ cat }}</option>
+            {% endfor %}
+        </select>
+
+        <input type="text" name="description" placeholder="Popis akce (volitelné)"
+               value="{{ action.description or '' }}"
+               style="flex:1; min-width:120px; max-width:280px; font-size:12px; padding:5px 8px; background:var(--bg); border:1px solid var(--border); border-radius:5px; color:var(--text);">
+    </form>
+
+    {# Targets checkboxy — mimo form kvůli layout, hodnota se sync přes JS #}
+    <div style="display:flex; gap:6px; align-items:center; font-size:12px; white-space:nowrap; flex-wrap:wrap;">
+        <span style="color:var(--text-dim);">Cíle:</span>
+        {% for val, lbl in [('computer','Počítač'),('computer_group','Sk. PC'),('user','Uživatel'),('user_group','Sk. uživ.')] %}
+        <label style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:12px;">
+            <input type="checkbox" class="target-cb" value="{{ val }}" style="width:auto;"
+                {% if val in (action.targets_list or []) %}checked{% endif %}>
+            {{ lbl }}
+        </label>
+        {% endfor %}
+    </div>
+
+    <button class="btn" onclick="submitSave()" style="white-space:nowrap;">
+        💾 Uložit <span class="kbd">Ctrl+S</span>
+    </button>
+
+    {% if not is_new and action.id %}
+    <form method="post" action="/ansible/actions/{{ action.id }}/delete" style="display:inline;"
+          onsubmit="return confirm('Smazat akci \'{{ action.name|e }}\'?')">
+        <button type="submit" class="btn btn-danger" style="padding:6px 12px; font-size:13px;">🗑 Smazat</button>
+    </form>
+    {% endif %}
+
+    {% else %}
+    {# ── Playbook režim (original) ── #}
     <form id="save-form" method="post" action="/ansible/playbooks/save"
           style="display:contents;">
         <input type="hidden" name="content" id="content-hidden">
@@ -202,6 +249,7 @@ main { padding: 0 !important; display: flex; flex-direction: column; height: cal
         <button type="submit" class="btn btn-danger" style="padding:6px 12px; font-size:13px;">🗑 Smazat</button>
     </form>
     {% endif %}
+    {% endif %}
 
     {% if saved %}
     <span class="save-flash">✓ Uloženo</span>
@@ -210,7 +258,7 @@ main { padding: 0 !important; display: flex; flex-direction: column; height: cal
     <div style="flex:1;"></div>
 
     <span style="font-size:11px; color:var(--text-dim);">
-        Kliknutím na snippet ho vložíte na pozici kurzoru
+        {% if is_action %}Akce — snippety vložíte kliknutím{% else %}Kliknutím na snippet ho vložíte na pozici kurzoru{% endif %}
     </span>
 </div>
 
@@ -315,9 +363,16 @@ validateYaml();
 /* ─── Uložení ───────────────────────────────────────────────────── */
 function submitSave() {
     const name = document.getElementById('filename-input').value.trim();
+    {% if is_action %}
+    if (!name) { alert('Zadejte název akce'); return; }
+    // Sync targets checkboxes → hidden field
+    const cbs = document.querySelectorAll('.target-cb:checked');
+    const targets = Array.from(cbs).map(cb => cb.value).join(',');
+    document.getElementById('targets-hidden').value = targets || 'computer';
+    {% else %}
     if (!name) { alert('Zadejte název souboru (.yml)'); return; }
+    {% endif %}
     document.getElementById('content-hidden').value = editor.getValue();
-    // form.submit() neprobublá přes submit event — odeslat fetch aby demo interceptor nemusel
     document.getElementById('save-form').submit();
 }
 
@@ -705,6 +760,295 @@ const SNIPPETS = [
         delay: 5
         timeout: 60
         state: started
+`},
+
+  // ── Windows ───────────────────────────────────────────────────
+  { cat: 'Windows', name: 'Kostra Windows playbooku', desc: 'Základ pro Windows hosty přes WinRM',
+    code: `---
+- name: Správa Windows stanic
+  hosts: windows          # skupina z inventáře
+  gather_facts: yes
+
+  vars:
+    domain: SKOLA.LOCAL
+
+  tasks:
+    - name: Test připojení
+      ansible.builtin.ping:
+`},
+  { cat: 'Windows', name: 'Spustit .bat / .cmd skript', desc: 'win_shell — spustí BAT/CMD soubor na stanici',
+    code: `    - name: Spustit bat skript
+      ansible.windows.win_shell: 'C:\\Scripts\\setup.bat'
+      args:
+        executable: cmd
+      register: bat_result
+
+    - name: Výstup skriptu
+      ansible.builtin.debug:
+        var: bat_result.stdout_lines
+`},
+  { cat: 'Windows', name: 'Spustit PowerShell skript', desc: 'win_shell — PS příkaz nebo skript',
+    code: `    - name: Spustit PowerShell příkaz
+      ansible.windows.win_shell: |
+        $hostname = $env:COMPUTERNAME
+        Write-Output "Stanice: $hostname"
+        Get-ComputerInfo | Select-Object WindowsProductName, TotalPhysicalMemory
+      register: ps_out
+
+    - ansible.builtin.debug:
+        var: ps_out.stdout_lines
+`},
+  { cat: 'Windows', name: 'Spustit PS skript ze souboru', desc: 'win_script — nahraje a spustí lokální .ps1',
+    code: `    - name: Nahrát a spustit PS1 skript
+      ansible.windows.win_script:
+        script: scripts/configure_station.ps1
+        creates: C:\\ProgramData\\setup_done.flag
+`},
+  { cat: 'Windows', name: 'Mapovat síťový disk', desc: 'win_mapped_drive — připojit SMB share jako disk',
+    code: `    - name: Mapovat síťový disk
+      community.windows.win_mapped_drive:
+        letter: Z
+        path: '\\\\dc1\\Dokumenty'
+        state: present
+        username: '{{ '{{' }} domain {{ '}}' }}\\Administrator'
+        password: '{{ '{{' }} ad_password {{ '}}' }}'
+      become: yes
+      become_method: runas
+      become_user: '{{ '{{' }} ansible_user {{ '}}' }}'
+`},
+  { cat: 'Windows', name: 'Odpojit síťový disk', desc: 'win_mapped_drive state: absent',
+    code: `    - name: Odpojit síťový disk
+      community.windows.win_mapped_drive:
+        letter: Z
+        state: absent
+`},
+  { cat: 'Windows', name: 'Nainstalovat MSI/EXE', desc: 'win_package — instalace softwaru z lokálního souboru nebo URL',
+    code: `    - name: Nainstalovat aplikaci (MSI)
+      ansible.windows.win_package:
+        path: '\\\\dc1\\Software\\aplikace.msi'
+        state: present
+        arguments: /quiet /norestart
+
+    # Nebo instalace z URL:
+    - name: Nainstalovat ze sítě
+      ansible.windows.win_package:
+        path: 'https://example.com/app-setup.exe'
+        product_id: '{GUID-APLIKACE}'
+        state: present
+        arguments: /S
+`},
+  { cat: 'Windows', name: 'Instalovat přes Chocolatey', desc: 'win_chocolatey — správce balíčků pro Windows',
+    code: `    - name: Zajistit Chocolatey
+      chocolatey.chocolatey.win_chocolatey:
+        name: chocolatey
+        state: present
+
+    - name: Instalovat balíčky přes Chocolatey
+      chocolatey.chocolatey.win_chocolatey:
+        name:
+          - 7zip
+          - vlc
+          - notepadplusplus
+          - googlechrome
+        state: present
+`},
+  { cat: 'Windows', name: 'Instalovat přes winget', desc: 'win_shell — instalace přes Windows Package Manager',
+    code: `    - name: Instalovat aplikaci přes winget
+      ansible.windows.win_shell: |
+        winget install --id Google.Chrome --silent --accept-package-agreements --accept-source-agreements
+      register: winget_result
+      changed_when: "'Successfully installed' in winget_result.stdout"
+      failed_when: winget_result.rc != 0 and 'already installed' not in winget_result.stdout
+`},
+  { cat: 'Windows', name: 'Windows Update', desc: 'win_updates — nainstalovat aktualizace Windows',
+    code: `    - name: Nainstalovat bezpečnostní aktualizace
+      ansible.windows.win_updates:
+        category_names:
+          - SecurityUpdates
+          - CriticalUpdates
+        state: installed
+        reboot: no           # nerestartovat automaticky
+      register: update_result
+
+    - name: Výsledek aktualizací
+      ansible.builtin.debug:
+        msg: "Nainstalováno {{ '{{' }} update_result.installed_update_count {{ '}}' }} aktualizací"
+`},
+  { cat: 'Windows', name: 'Registry — nastavit hodnotu', desc: 'win_regedit — zapsat hodnotu do registru',
+    code: `    - name: Nastavit hodnotu v registru
+      ansible.windows.win_regedit:
+        path: HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate
+        name: DisableWindowsUpdateAccess
+        data: 0
+        type: dword
+        state: present
+
+    # Příklad — zakázat USB storage:
+    - name: Zakázat USB úložiště
+      ansible.windows.win_regedit:
+        path: HKLM:\\SYSTEM\\CurrentControlSet\\Services\\USBSTOR
+        name: Start
+        data: 4
+        type: dword
+`},
+  { cat: 'Windows', name: 'Registry — smazat hodnotu', desc: 'win_regedit state: absent',
+    code: `    - name: Smazat hodnotu z registru
+      ansible.windows.win_regedit:
+        path: HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows
+        name: NazevHodnoty
+        state: absent
+`},
+  { cat: 'Windows', name: 'Firewall — povolit port', desc: 'win_firewall_rule — otevřít TCP/UDP port',
+    code: `    - name: Firewall — povolit příchozí port
+      community.windows.win_firewall_rule:
+        name: Povol RDP
+        localport: 3389
+        action: allow
+        direction: in
+        protocol: tcp
+        state: present
+        enabled: yes
+        profiles: domain,private
+`},
+  { cat: 'Windows', name: 'Firewall — blokovat port', desc: 'win_firewall_rule — zablokovat odchozí port',
+    code: `    - name: Firewall — blokovat odchozí port
+      community.windows.win_firewall_rule:
+        name: Blokuj SMB ven
+        remoteport: 445
+        action: block
+        direction: out
+        protocol: tcp
+        state: present
+        enabled: yes
+`},
+  { cat: 'Windows', name: 'Firewall — pravidlo pro aplikaci', desc: 'win_firewall_rule — podle cesty k EXE',
+    code: `    - name: Firewall — pravidlo pro aplikaci
+      community.windows.win_firewall_rule:
+        name: Povol MojAplikaci
+        program: C:\\Program Files\\MojeAplikace\\app.exe
+        action: allow
+        direction: in
+        state: present
+        enabled: yes
+        profiles: domain
+`},
+  { cat: 'Windows', name: 'Firewall — zakázat celý profil', desc: 'win_firewall — vypnout Windows Firewall profil',
+    code: `    - name: Zakázat Windows Firewall (veřejný profil)
+      community.windows.win_firewall:
+        profiles:
+          - Public
+        state: disabled
+
+    # Znovu zapnout:
+    # state: enabled
+`},
+  { cat: 'Windows', name: 'Windows služba', desc: 'win_service — spravovat Windows službu',
+    code: `    - name: Zastavit a zakázat službu
+      ansible.windows.win_service:
+        name: wuauserv        # Windows Update
+        state: stopped
+        start_mode: disabled
+
+    # Spustit a zapnout:
+    - name: Spustit službu
+      ansible.windows.win_service:
+        name: Spooler
+        state: started
+        start_mode: auto
+`},
+  { cat: 'Windows', name: 'Kopírovat soubor na Windows', desc: 'win_copy — zkopírovat soubor na Windows cestu',
+    code: `    - name: Zkopírovat soubor
+      ansible.windows.win_copy:
+        src: files/config.ini
+        dest: C:\\ProgramData\\MojeAplikace\\config.ini
+        backup: yes
+
+    # Zkopírovat z DC share:
+    - name: Zkopírovat ze síťové cesty
+      ansible.windows.win_copy:
+        src: '\\\\dc1\\scripts\\deploy.ps1'
+        dest: C:\\Scripts\\deploy.ps1
+        remote_src: yes
+`},
+  { cat: 'Windows', name: 'Vytvořit adresář', desc: 'win_file — vytvořit složku na Windows',
+    code: `    - name: Vytvořit adresáře
+      ansible.windows.win_file:
+        path: "{{ '{{' }} item {{ '}}' }}"
+        state: directory
+      loop:
+        - C:\\Scripts
+        - C:\\Logs\\Ansible
+        - C:\\ProgramData\\MojeAplikace
+`},
+  { cat: 'Windows', name: 'Naplánovaný úkol — při startu', desc: 'win_scheduled_task — spustit skript při startu Windows',
+    code: `    - name: Vytvořit naplánovaný úkol (při startu)
+      community.windows.win_scheduled_task:
+        name: MujUkolPriStartu
+        description: Spustit konfigurační skript
+        executable: PowerShell.exe
+        arguments: -NonInteractive -File C:\\Scripts\\startup.ps1
+        triggers:
+          - type: boot
+        run_level: highest
+        logon_type: service_account
+        username: SYSTEM
+        state: present
+        enabled: yes
+`},
+  { cat: 'Windows', name: 'Lokální uživatel', desc: 'win_user — správa lokálních uživatelů Windows',
+    code: `    - name: Vytvořit lokálního uživatele
+      ansible.windows.win_user:
+        name: servisni
+        password: "{{ '{{' }} servisni_password {{ '}}' }}"
+        fullname: Servisní účet
+        description: Lokální servisní uživatel
+        groups:
+          - Administrators
+        state: present
+        password_never_expires: yes
+        account_disabled: no
+`},
+  { cat: 'Windows', name: 'Proměnná prostředí', desc: 'win_environment — nastavit systémovou env proměnnou',
+    code: `    - name: Nastavit systémovou proměnnou prostředí
+      ansible.windows.win_environment:
+        name: APP_CONFIG_PATH
+        value: C:\\ProgramData\\MojeAplikace
+        state: present
+        level: machine      # machine = systém, user = aktuální uživatel
+`},
+  { cat: 'Windows', name: 'Sdílená složka SMB', desc: 'win_share — vytvořit nebo spravovat SMB share',
+    code: `    - name: Vytvořit sdílenou složku
+      ansible.windows.win_share:
+        name: Dokumenty
+        path: C:\\Sdileni\\Dokumenty
+        description: Sdílené dokumenty třídy
+        full: Domain Users
+        read: Everyone
+        state: present
+        caching_mode: Documents
+`},
+  { cat: 'Windows', name: 'Restartovat Windows', desc: 'win_reboot — restart s čekáním na opětovné připojení',
+    code: `    - name: Restartovat stanici
+      ansible.windows.win_reboot:
+        msg: "Restart naplánován Ansiblem"
+        pre_reboot_delay: 10
+        post_reboot_delay: 30
+        reboot_timeout: 300
+`},
+  { cat: 'Windows', name: 'Info o systému (fakta)', desc: 'setup — získat HW/SW informace o stanici',
+    code: `    - name: Zjistit informace o stanici
+      ansible.builtin.setup:
+        gather_subset:
+          - hardware
+          - network
+
+    - name: Vypsat základní info
+      ansible.builtin.debug:
+        msg: |
+          Stanice: {{ '{{' }} ansible_hostname {{ '}}' }}
+          OS: {{ '{{' }} ansible_os_name {{ '}}' }} {{ '{{' }} ansible_os_version {{ '}}' }}
+          RAM: {{ '{{' }} (ansible_memtotal_mb / 1024) | round(1) {{ '}}' }} GB
+          CPU: {{ '{{' }} ansible_processor_count {{ '}}' }} jader
 `},
 ];
 

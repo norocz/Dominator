@@ -28,6 +28,9 @@ def _require_user(request: Request) -> str:
 
 @router.get("", response_class=HTMLResponse)
 async def list_groups(request: Request, user: str = Depends(_require_user)):
+    runner = AnsibleRunner(request.app.state.config)
+    playbooks = runner.list_playbooks()
+
     with get_session() as session:
         groups = session.query(Group).order_by(Group.kind, Group.name).all()
         # Počet počítačů v každé skupině (jen computer groups)
@@ -64,6 +67,7 @@ async def list_groups(request: Request, user: str = Depends(_require_user)):
         "request": request,
         "user": user,
         "groups": groups_data,
+        "playbooks": playbooks,
     })
 
 
@@ -116,6 +120,65 @@ async def create_group(
     return HTMLResponse(
         f'<div id="group-msg" style="color:var(--success);padding:8px 0">{msg}'
         f'</div><script>setTimeout(()=>location.reload(),800)</script>'
+    )
+
+
+@router.post("/{group_id}/run-playbook", response_class=HTMLResponse)
+async def group_run_playbook(
+    group_id: int,
+    request: Request,
+    user: str = Depends(_require_user),
+    playbook: str = Form(...),
+    extra_vars: str = Form(""),
+    limit_override: str = Form(""),
+):
+    """Spustí zvolený Ansible playbook na všech počítačích ve skupině."""
+    with get_session() as session:
+        group = session.get(Group, group_id)
+        if not group:
+            raise HTTPException(404, "Skupina nenalezena")
+        group_name = group.name
+        if group.kind == "computer":
+            memberships = (
+                session.query(ComputerGroupMembership)
+                .filter(ComputerGroupMembership.group_id == group_id)
+                .all()
+            )
+            comp_ids = [m.computer_id for m in memberships]
+            computers = (
+                session.query(Computer).filter(Computer.id.in_(comp_ids)).all()
+                if comp_ids else []
+            )
+            hostnames = [c.hostname for c in computers if c.hostname]
+        else:
+            hostnames = []
+
+    limit = limit_override.strip() or (",".join(hostnames) if hostnames else "all")
+
+    ev: dict | None = None
+    if extra_vars.strip():
+        import json as _json
+        try:
+            ev = _json.loads(extra_vars)
+        except Exception:
+            ev = {}
+            for pair in extra_vars.split():
+                if "=" in pair:
+                    k, _, v = pair.partition("=")
+                    ev[k.strip()] = v.strip()
+            if not ev:
+                ev = None
+
+    runner = AnsibleRunner(request.app.state.config)
+    job_id = runner.start(playbook, limit=limit, extra_vars=ev, demo=_DEMO_MODE)
+    log_action(user, "run_playbook_group", "group", group_id, {"playbook": playbook, "limit": limit})
+
+    return HTMLResponse(
+        f'<div style="padding:6px 0; font-size:13px;">'
+        f'<span style="color:var(--success);">&#10003; Job spuštěn</span> — '
+        f'<a href="/ansible?job={job_id}" style="color:var(--accent);">#{job_id} ({playbook})</a>'
+        f'&nbsp;&nbsp;<a href="/ansible" style="color:var(--text-dim); font-size:11px;">Ansible výstupy →</a>'
+        f'</div>'
     )
 
 

@@ -157,4 +157,18 @@
 
 </div>
 </form>
+
+<!-- Ansible akce -->
+<div class="detail-section" style="margin-top: 16px; grid-column: 1 / -1;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+        <h3 style="margin:0; color:var(--accent); font-size:14px; text-transform:uppercase; letter-spacing:0.05em;">Ansible akce</h3>
+        <a href="/ansible" style="font-size:11px; color:var(--text-dim);">spravovat akce →</a>
+    </div>
+    <div id="ansible-actions-panel-{{ c.id }}"
+         hx-get="/ansible/actions/panel?target=computer&hostname={{ c.hostname | urlencode }}&prefix=comp{{ c.id }}"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+        <span style="color:var(--text-dim); font-size:12px;">Načítám akce…</span>
+    </div>
+</div>
 {% endblock %}

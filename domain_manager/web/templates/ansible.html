@@ -46,9 +46,17 @@
 {% endblock %}
 
 {% block content %}
-<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+<div style="display:flex; align-items:center; gap:10px; margin-bottom:20px; flex-wrap:wrap;">
     <h1 style="margin:0;">Ansible</h1>
-    <a href="/ansible/playbooks/new" class="btn">+ Nový playbook</a>
+    <div style="flex:1;"></div>
+    <a href="/ansible/playbooks/new" class="btn btn-secondary">+ Nový playbook</a>
+    <a href="/ansible/actions/new" class="btn">+ Nová akce</a>
+    <button hx-post="/ansible/actions/seed" hx-target="#seed-result" hx-swap="innerHTML"
+        style="background:var(--border); color:var(--text); font-size:13px; padding:6px 14px;"
+        title="Vloží 28 přednastavených akcí do databáze">
+        &#8615; Načíst výchozí akce
+    </button>
+    <span id="seed-result"></span>
 </div>
 
 {% if demo_mode %}
@@ -157,4 +165,64 @@
 </div>
 
 </div><!-- /grid -->
+
+<!-- ── Akce knihovna ──────────────────────────────────────────── -->
+<div style="margin-top: 28px;">
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+        <h2 style="margin:0;">Akce knihovna
+            <span style="color:var(--text-dim); font-size:13px; font-weight:400;">({{ actions | length }})</span>
+        </h2>
+        <span style="font-size:12px; color:var(--text-dim);">
+            Pojmenované akce s definovaným typem cíle — spustitelné ze skupin, počítačů a uživatelů
+        </span>
+    </div>
+
+    {% if not actions %}
+    <div class="card" style="color:var(--text-dim); font-size:13px;">
+        Zatím žádné akce. Klikněte <strong>↓ Načíst výchozí akce</strong> pro načtení 28 připravených akcí.
+    </div>
+    {% else %}
+
+    {% set cats = actions | map(attribute='category') | list | unique | sort %}
+    {% for cat in cats %}
+    <div style="margin-bottom:20px;">
+        <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em;
+                    color:var(--text-dim); margin-bottom:8px; padding-bottom:4px;
+                    border-bottom:1px solid var(--border);">{{ cat }}</div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px,1fr)); gap:8px;">
+        {% for act in actions if act.category == cat %}
+        <div class="card" style="padding:12px 16px; display:flex; flex-direction:column; gap:6px;">
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:8px;">
+                <div>
+                    <div style="font-weight:600; font-size:13px;">{{ act.name }}</div>
+                    {% if act.description %}
+                    <div style="font-size:11px; color:var(--text-dim); margin-top:2px;">{{ act.description }}</div>
+                    {% endif %}
+                </div>
+                <div style="display:flex; gap:5px; flex-shrink:0;">
+                    <a href="/ansible/actions/{{ act.id }}/edit"
+                       style="font-size:11px; padding:3px 8px; background:var(--border); border-radius:4px;
+                              color:var(--text); text-decoration:none; white-space:nowrap;">✏ Upravit</a>
+                </div>
+            </div>
+            <div style="display:flex; gap:4px; flex-wrap:wrap;">
+                {% for t in act.targets_list %}
+                <span style="font-size:10px; padding:2px 6px; border-radius:10px;
+                              background:rgba(74,158,255,0.12); color:var(--accent); white-space:nowrap;">
+                    {{ {'computer':'Počítač','computer_group':'Sk. PC','user':'Uživatel','user_group':'Sk. uživ.'}.get(t, t) }}
+                </span>
+                {% endfor %}
+                {% if act.is_builtin %}
+                <span style="font-size:10px; padding:2px 6px; border-radius:10px;
+                              background:rgba(16,185,129,0.1); color:var(--success);">výchozí</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+
+    {% endif %}
+</div>
 {% endblock %}

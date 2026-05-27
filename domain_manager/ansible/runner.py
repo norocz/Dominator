@@ -148,6 +148,82 @@ class AnsibleRunner:
         job.status = "success"
         job.finished_at = datetime.now()
 
+    def start_content(
+        self,
+        display_name: str,
+        content: str,
+        limit: str = "all",
+        extra_vars: dict | None = None,
+        demo: bool = False,
+    ) -> str:
+        """Run a playbook from in-memory content (DB-stored action). Uses a temp file."""
+        job_id = uuid.uuid4().hex[:8]
+        job = AnsibleJob(
+            id=job_id,
+            playbook=display_name,
+            limit=limit,
+            started_at=datetime.now(),
+        )
+        with _jobs_lock:
+            _jobs[job_id] = job
+
+        if demo:
+            thread = threading.Thread(target=self._run_demo, args=(job,), daemon=True)
+        else:
+            self.playbooks_path.mkdir(parents=True, exist_ok=True)
+            tmp_path = self.playbooks_path / f"_dm_{job_id}.yml"
+            tmp_path.write_text(content, encoding="utf-8")
+            thread = threading.Thread(
+                target=self._run_real_path, args=(job, tmp_path, extra_vars), daemon=True
+            )
+        thread.start()
+        return job_id
+
+    def _run_real_path(self, job: AnsibleJob, path: Path, extra_vars: dict | None) -> None:
+        """Run ansible-playbook from an explicit path; deletes the file afterwards."""
+        try:
+            ansible_pb = shutil.which("ansible-playbook")
+            if not ansible_pb:
+                job.output_lines.append("CHYBA: ansible-playbook nenalezeno v PATH.")
+                job.output_lines.append("Nainstalujte: pip install ansible")
+                job.status = "failed"
+                job.finished_at = datetime.now()
+                return
+
+            cmd = [ansible_pb, str(path)]
+            if self.inventory_path.exists():
+                cmd.extend(["-i", str(self.inventory_path)])
+            if job.limit and job.limit != "all":
+                cmd.extend(["--limit", job.limit])
+            if extra_vars:
+                import json
+                cmd.extend(["-e", json.dumps(extra_vars)])
+
+            try:
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    env={**os.environ, "ANSIBLE_FORCE_COLOR": "0"},
+                )
+                for line in proc.stdout:
+                    job.output_lines.append(line.rstrip("\n"))
+                proc.wait()
+                job.return_code = proc.returncode
+                job.status = "success" if proc.returncode == 0 else "failed"
+            except Exception as exc:
+                job.output_lines.append(f"CHYBA: {exc}")
+                job.status = "failed"
+            finally:
+                job.finished_at = datetime.now()
+        finally:
+            try:
+                path.unlink(missing_ok=True)
+            except Exception:
+                pass
+
     def _run_real(self, job: AnsibleJob, extra_vars: dict | None) -> None:
         """Skutečné spuštění přes ansible-playbook subprocess."""
         ansible_pb = shutil.which("ansible-playbook")

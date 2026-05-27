@@ -17,6 +17,9 @@
 .form-row .field { display: flex; flex-direction: column; gap: 4px; }
 .form-row label { font-size: 12px; color: var(--text-dim); }
 .form-row input, .form-row select { width: auto; min-width: 160px; font-size: 13px; padding: 6px 10px; }
+.ansible-panel-row { background: rgba(74,158,255,0.04); }
+.ansible-panel-row td { padding: 10px 14px 12px; }
+.btn-ansible { background: var(--border); color: var(--text); font-size: 12px; padding: 4px 10px; }
 </style>
 {% endblock %}
 
@@ -158,6 +161,16 @@
                     ✓ Odblokovat
                 </button>
                 {% endif %}
+                <button class="btn-ansible"
+                    id="ansible-toggle-{{ g.id }}"
+                    hx-get="/ansible/actions/panel?target={{ 'computer_group' if g.kind == 'computer' else 'user_group' }}&group_id={{ g.id }}&prefix={{ g.kind[0] }}g{{ g.id }}&context_label={{ g.name | urlencode }}"
+                    hx-target="#ansible-panel-content-{{ g.id }}"
+                    hx-swap="innerHTML"
+                    hx-trigger="click once"
+                    onclick="toggleAnsiblePanel({{ g.id }})"
+                    title="Spustit Ansible akci na skupině">
+                    &#9654; Akce
+                </button>
                 <form method="post" action="/groups/{{ g.id }}/delete"
                     onsubmit="return confirmDelete('{{ g.name }}')"
                     style="display:inline; margin:0;">
@@ -171,21 +184,35 @@
             </div>
         </td>
     </tr>
+    <tr id="ansible-panel-{{ g.id }}" class="ansible-panel-row" style="display:none;">
+        <td colspan="6">
+            <div id="ansible-panel-content-{{ g.id }}" style="padding:4px 0;">
+                <span style="color:var(--text-dim); font-size:12px;">Klikněte &#9654; Akce pro načtení…</span>
+            </div>
+        </td>
+    </tr>
     {% endfor %}
     </tbody>
 </table>
 </div>
 {% endif %}
 
-<div class="card" style="margin-top: 16px; padding: 14px 20px;">
-    <strong>Blokování internetu pro skupinu</strong> spustí Ansible playbook
-    <code>block_internet.yml</code> na všech počítačích ve skupině paralelně.
-    Výsledek každého jobu najdete v sekci <a href="/ansible" style="color: var(--accent);">Ansible → Joby</a>.
+<div class="card" style="margin-top: 16px; padding: 14px 20px; font-size: 13px;">
+    <strong>Blokování internetu</strong> spustí playbook <code>block_internet.yml</code> na všech počítačích skupiny.
+    <br>
+    <strong>&#9654; Akce</strong> — tlačítko u každé skupiny (počítačové i uživatelské) otevře panel s
+    <a href="/ansible" style="color:var(--accent);">Ansible akcemi</a> přiřazenými pro daný typ skupiny.
+    Akce jsou spravovány v sekci Ansible → Akce knihovna.
 </div>
 
 <script>
 function confirmDelete(name) {
     return confirm('Opravdu smazat skupinu "' + name + '"?\n\nBude odstraněna z databáze i z Active Directory.');
+}
+
+function toggleAnsiblePanel(id) {
+    var row = document.getElementById('ansible-panel-' + id);
+    if (row) row.style.display = row.style.display === 'none' ? '' : 'none';
 }
 </script>
 {% endblock %}
