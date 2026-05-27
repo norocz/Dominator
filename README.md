@@ -143,16 +143,28 @@ Otevřete `http://<dc1_ip>:8000/`
 
 ## Přihlášení do webového rozhraní
 
-Používá **Active Directory přihlašovací údaje**. Přihlásit se mohou
-pouze členové skupiny `Domain Admins` nebo `DM-Admins`:
+Používá **Active Directory přihlašovací údaje** — žádná vlastní databáze uživatelů neexistuje.
+
+| Pole | Hodnota |
+|------|---------|
+| Uživatelské jméno | `Administrator` (nebo jiný člen Domain Admins / DM-Admins) |
+| Heslo | hodnota `domain.admin_password` z `/etc/domain-manager/config.yaml` |
+
+Heslo si připomenete přímo ze serveru:
 
 ```bash
-# Volitelná skupina pro delegovaný přístup (bez plných AD admin práv):
+sudo grep admin_password /etc/domain-manager/config.yaml
+```
+
+Přihlásit se mohou pouze členové skupiny `Domain Admins` nebo `DM-Admins`.
+Pro delegovaný přístup bez plných AD admin práv:
+
+```bash
 samba-tool group add DM-Admins
 samba-tool group addmembers DM-Admins <username>
 ```
 
-Demo režim (bez AD serveru):
+Demo režim — přijme jakékoliv přihlašovací údaje, pracuje s ukázkovými daty:
 
 ```bash
 DM_DEMO=1 dm web start
