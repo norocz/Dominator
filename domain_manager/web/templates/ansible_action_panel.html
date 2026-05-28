@@ -1,0 +1,98 @@
+{# HTMX fragment — seznam Ansible akcí pro daný typ cíle.
+   Načítá se lazy přes hx-get="/ansible/actions/panel?..."
+   prefix: unikátní prefix pro DOM IDs (zabrání kolizím při více panelech na stránce)
+#}
+<style>
+.ap-header { font-size:12px; color:var(--text-dim); margin-bottom:10px; }
+.ap-cat { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em;
+          color:var(--text-dim); padding:6px 0 3px; margin-top:8px; border-top:1px solid var(--border); }
+.ap-cat:first-of-type { margin-top:0; border-top:none; }
+.ap-row { display:flex; align-items:center; gap:8px; padding:5px 0;
+          border-bottom:1px solid rgba(255,255,255,0.04); }
+.ap-name { font-size:12px; font-weight:500; flex:1; min-width:0; }
+.ap-desc { font-size:11px; color:var(--text-dim); }
+.ap-btn { font-size:12px; padding:4px 10px; white-space:nowrap;
+          background:var(--accent); color:#fff; border:none; border-radius:4px; cursor:pointer; }
+.ap-form { padding:6px 0 4px; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.ap-ev { font-size:12px; padding:4px 8px; font-family:monospace; flex:1; min-width:120px; }
+.ap-result { font-size:12px; padding:2px 0; }
+</style>
+
+<div class="ap-header">
+    Ansible akce pro <strong style="color:var(--text);">{{ context_label or target_label }}</strong>
+    <span>({{ target_label }})</span>
+    {% if not actions %}
+    — <a href="/ansible/actions/new" style="color:var(--accent);">vytvořit novou</a>
+    nebo <a href="/ansible" style="color:var(--accent);">načíst výchozí</a>
+    {% else %}
+    <span style="color:var(--text-dim); margin-left:4px;">{{ actions | length }} akcí</span>
+    {% endif %}
+</div>
+
+{% if not actions %}
+<div style="color:var(--text-dim); font-size:12px;">
+    Žádné akce pro tento typ cíle. Přejděte do
+    <a href="/ansible" style="color:var(--accent);">Ansible</a> a načtěte výchozí akce.
+</div>
+{% else %}
+
+{% set cats = actions | map(attribute='category') | list | unique | sort %}
+{% for cat in cats %}
+<div class="ap-cat">{{ cat }}</div>
+{% for act in actions if act.category == cat %}
+{% set uid = prefix ~ '_' ~ act.id %}
+<div>
+    <div class="ap-row">
+        <div style="flex:1; min-width:0;">
+            <div class="ap-name">{{ act.name | replace(cat ~ ': ', '') }}</div>
+            {% if act.description %}
+            <div class="ap-desc">{{ act.description }}</div>
+            {% endif %}
+        </div>
+        <button class="ap-btn" onclick="apToggle('{{ uid }}')">&#9654; Spustit</button>
+    </div>
+    <div id="apf-{{ uid }}" style="display:none;">
+        <div class="ap-form">
+            <input type="text" class="ap-ev" id="apev-{{ uid }}"
+                placeholder='Extra vars: {"var": "val"} nebo var=val (volitelné)'>
+            <button style="font-size:12px; padding:4px 12px; background:var(--success); color:#fff;"
+                onclick="apRun({{ act.id }}, '{{ target }}', {{ group_id }}, '{{ hostname }}', '{{ username }}', '{{ uid }}')">
+                &#10003; Potvrdit
+            </button>
+        </div>
+        <div id="apr-{{ uid }}" class="ap-result"></div>
+    </div>
+</div>
+{% endfor %}
+{% endfor %}
+
+{% endif %}
+
+<script>
+(function() {
+function apToggle(uid) {
+    var el = document.getElementById('apf-' + uid);
+    if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+function apRun(actId, targetType, groupId, hostname, username, uid) {
+    var ev = (document.getElementById('apev-' + uid) || {}).value || '';
+    var resultEl = document.getElementById('apr-' + uid);
+    if (resultEl) resultEl.innerHTML = '<span style="color:var(--text-dim);">Spouštím…</span>';
+    var body = new URLSearchParams();
+    body.append('target_type', targetType);
+    body.append('group_id', String(groupId || 0));
+    body.append('hostname', hostname || '');
+    body.append('username', username || '');
+    if (ev.trim()) body.append('extra_vars', ev.trim());
+    fetch('/ansible/actions/' + actId + '/run', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: body.toString()
+    }).then(function(r){ return r.text(); })
+      .then(function(html){ if (resultEl) resultEl.innerHTML = html; })
+      .catch(function(e){ if (resultEl) resultEl.innerHTML = '<span style="color:var(--danger);">' + e + '</span>'; });
+}
+window.apToggle = apToggle;
+window.apRun = apRun;
+})();
+</script>

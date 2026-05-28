@@ -1,0 +1,2 @@
+[console_scripts]
+dm = domain_manager.cli:main
