@@ -113,7 +113,11 @@
     <tbody>
     {% for g in groups %}
     <tr style="border-bottom: 1px solid var(--border);">
-        <td style="padding: 10px; font-weight: 500;">{{ g.name }}</td>
+        <td style="padding: 10px; font-weight: 500;">
+            <a href="/groups/{{ g.id }}" style="color:var(--text); text-decoration:none;">
+                {{ g.name }}
+            </a>
+        </td>
         <td style="padding: 10px;">
             <span class="kind-badge {% if g.kind == 'user' %}user{% endif %}">
                 {{ 'Uživatelé' if g.kind == 'user' else 'Počítače' }}

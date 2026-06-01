@@ -193,16 +193,24 @@ else
     inf "Pi-hole přeskočen."
 fi
 
-# Monitoring (jen na dc2)
-if [[ "$SERVER_ROLE" == "dc2" ]] || ask_yn "Zapnout monitoring (Prometheus/Grafana/Zabbix)?" "y"; then
+# Prometheus + Grafana monitoring
+if [[ "$SERVER_ROLE" == "dc2" ]] || ask_yn "Zapnout Prometheus + Grafana monitoring?" "y"; then
     MON_ENABLED="true"
     ask_pass "Heslo Grafana admin"  GRAFANA_PASS
-    ask_pass "Heslo Zabbix DB"      ZABBIX_DB_PASS
 else
     MON_ENABLED="false"
     GRAFANA_PASS="ZmenMeGrafana!"
+    inf "Prometheus/Grafana přeskočen."
+fi
+
+# Zabbix (agent-based, Windows klienti) — volitelné, dc2 je nejčastější umístění
+if ask_yn "Zapnout Zabbix (agent monitoring, doporučeno pro Windows klienty)?" "n"; then
+    ZABBIX_ENABLED="true"
+    ask_pass "Heslo Zabbix DB"  ZABBIX_DB_PASS
+else
+    ZABBIX_ENABLED="false"
     ZABBIX_DB_PASS="ZmenMeZabbixDb!"
-    inf "Monitoring přeskočen."
+    inf "Zabbix přeskočen (lze doinstalovat: dm install zabbix)."
 fi
 
 # PostgreSQL
@@ -228,7 +236,8 @@ printf "    %-25s %s\n" "Podsíť:"    "${SUBNET}"
 printf "    %-25s %s\n" "Brána:"     "${GATEWAY}"
 printf "    %-25s %s\n" "DHCP:"      "${DHCP_ENABLED} (${POOL_START}–${POOL_END})"
 printf "    %-25s %s\n" "Pi-hole:"   "${PIHOLE_ENABLED}"
-printf "    %-25s %s\n" "Monitoring:""${MON_ENABLED}"
+printf "    %-25s %s\n" "Monitoring (Prometheus/Grafana):" "${MON_ENABLED}"
+printf "    %-25s %s\n" "Zabbix:"    "${ZABBIX_ENABLED}"
 echo
 ask_yn "Pokračovat s instalací?" "y" || { inf "Instalace zrušena."; exit 0; }
 
@@ -332,9 +341,11 @@ monitoring:
   grafana:
     port: 3000
     admin_password: "${GRAFANA_PASS}"
-  zabbix:
-    port: 8082
-    db_password: "${ZABBIX_DB_PASS}"
+
+zabbix:
+  enabled: ${ZABBIX_ENABLED}
+  port: 8082
+  db_password: "${ZABBIX_DB_PASS}"
 
 postgres:
   enabled: true

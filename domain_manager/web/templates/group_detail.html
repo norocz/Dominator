@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}{{ group.name }} — Skupina{% endblock %}
+
+{% block head_extra %}
+<style>
+.member-list { list-style: none; margin: 0; padding: 0; }
+.member-list li {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 14px; border-bottom: 1px solid var(--border); font-size: 13px;
+}
+.member-list li:last-child { border-bottom: none; }
+.edit-form-panel { display: none; }
+.edit-form-panel.open { display: block; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="display:flex; align-items:center; gap:10px; margin-bottom:20px; flex-wrap:wrap;">
+    <a href="/groups" style="color:var(--text-dim); font-size:13px;">← Skupiny</a>
+    <span style="color:var(--border);">/</span>
+    <h1 style="margin:0;">{{ group.name }}</h1>
+    <span class="badge {{ 'success' if group.kind == 'user' else 'info' }}" style="font-size:11px;">
+        {{ 'Uživatelé' if group.kind == 'user' else 'Počítače' }}
+    </span>
+    <div style="flex:1"></div>
+    <button onclick="document.getElementById('edit-panel').classList.toggle('open')"
+        style="font-size:13px; padding:5px 14px; background:var(--border); color:var(--text);">
+        ✎ Upravit
+    </button>
+</div>
+
+{% if group.description %}
+<p style="color:var(--text-dim); font-size:13px; margin:-8px 0 16px;">{{ group.description }}</p>
+{% endif %}
+
+<!-- Edit panel -->
+<div id="edit-panel" class="edit-form-panel card" style="margin-bottom:16px; padding:16px 20px;">
+    <div style="font-size:14px; font-weight:600; margin-bottom:12px;">Upravit skupinu</div>
+    <form method="post" action="/groups/{{ group.id }}">
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+            <div style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:180px;">
+                <label style="font-size:12px; color:var(--text-dim);">Název *</label>
+                <input name="name" type="text" value="{{ group.name }}" required style="font-size:13px; padding:6px 10px;">
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px; flex:2; min-width:220px;">
+                <label style="font-size:12px; color:var(--text-dim);">Popis</label>
+                <input name="description" type="text" value="{{ group.description }}" style="font-size:13px; padding:6px 10px;">
+            </div>
+            <button type="submit" style="padding:6px 18px;">Uložit</button>
+        </div>
+    </form>
+</div>
+
+<!-- Přidat člena -->
+<div class="card" style="margin-bottom:16px; padding:16px 20px;">
+    <div style="font-size:14px; font-weight:600; margin-bottom:10px;">
+        Přidat {{ 'uživatele' if group.kind == 'user' else 'počítač' }}
+    </div>
+    {% if available %}
+    <form method="post" action="/groups/{{ group.id }}/members/add"
+          style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <select name="member_id" style="flex:1; min-width:200px; font-size:13px; padding:6px 10px;">
+            {% for item in available %}
+            <option value="{{ item.id }}">{{ item.label }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" style="padding:6px 16px;">Přidat</button>
+    </form>
+    {% else %}
+    <p style="color:var(--text-dim); font-size:13px; margin:0;">
+        Všechny {{ 'uživatelé' if group.kind == 'user' else 'počítače' }} jsou již ve skupině.
+    </p>
+    {% endif %}
+</div>
+
+<!-- Seznam členů -->
+<div class="card" style="padding:0; overflow:hidden;">
+    <div style="padding:12px 16px; border-bottom:1px solid var(--border); font-size:13px; font-weight:600;">
+        Členové skupiny
+        <span style="color:var(--text-dim); font-weight:400; margin-left:6px;">({{ members | length }})</span>
+    </div>
+    {% if members %}
+    <ul class="member-list">
+        {% for m in members %}
+        <li>
+            <span>
+                {% if group.kind == 'computer' %}
+                <a href="/computers/{{ m.id }}" style="color:var(--accent);">{{ m.label }}</a>
+                {% else %}
+                <a href="/users/{{ m.id }}" style="color:var(--accent);">{{ m.label }}</a>
+                {% endif %}
+            </span>
+            <form method="post" action="/groups/{{ group.id }}/members/remove/{{ m.id }}"
+                  onsubmit="return confirm('Odebrat {{ m.label }} ze skupiny?')"
+                  style="margin:0;">
+                <button type="submit" class="btn-danger" style="font-size:11px; padding:3px 10px;">
+                    Odebrat
+                </button>
+            </form>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p style="padding:16px; color:var(--text-dim); font-size:13px; margin:0;">
+        Skupina nemá žádné členy. Přidejte {{ 'uživatele' if group.kind == 'user' else 'počítač' }} výše.
+    </p>
+    {% endif %}
+</div>
+{% endblock %}

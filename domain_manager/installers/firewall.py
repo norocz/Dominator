@@ -42,9 +42,10 @@ class FirewallInstaller(BaseInstaller):
             extra_tcp += [
                 self.cfg.monitoring.prometheus.port,
                 self.cfg.monitoring.grafana.port,
-                self.cfg.monitoring.zabbix.port,
                 9100,  # node_exporter
             ]
+        if self.cfg.zabbix.enabled:
+            extra_tcp += [self.cfg.zabbix.port, 10051]  # web + zabbix-server
         extra_tcp.append(mgr_port)
         extra_tcp_str = ", ".join(str(p) for p in extra_tcp)
 

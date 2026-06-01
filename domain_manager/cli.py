@@ -175,10 +175,19 @@ def install_pihole(ctx: click.Context, instance: str) -> None:
 @install.command("monitoring")
 @click.pass_context
 def install_monitoring(ctx: click.Context) -> None:
-    """Prometheus + Grafana + Zabbix (běží na DC2)."""
+    """Prometheus + Grafana (běží na DC2). Pro Zabbix: dm install zabbix."""
     from .installers.monitoring import MonitoringInstaller
     cfg = load_config(ctx.obj["config_path"])
     MonitoringInstaller(cfg, ctx.obj["runner"]).run()
+
+
+@install.command("zabbix")
+@click.pass_context
+def install_zabbix(ctx: click.Context) -> None:
+    """Zabbix (agent-based monitoring, Windows klienti). Vyžaduje zabbix.enabled: true v configu."""
+    from .installers.zabbix import ZabbixInstaller
+    cfg = load_config(ctx.obj["config_path"])
+    ZabbixInstaller(cfg, ctx.obj["runner"]).run()
 
 
 @install.command("dhcp")

@@ -59,7 +59,7 @@ pihole:
   dns_port: 5353
   web_port: 8081
 
-# --- Monitoring (vše na DC2) ----------------------------------------------
+# --- Monitoring: Prometheus + Grafana (DC2) --------------------------------
 monitoring:
   enabled: true
   prometheus:
@@ -68,9 +68,13 @@ monitoring:
   grafana:
     port: 3000
     admin_password: "ZmenMeGrafana!"
-  zabbix:
-    port: 8082
-    db_password: "ZmenMeZabbixDb!"
+
+# --- Zabbix (agent-based monitoring, Windows klienti) ----------------------
+# Instalace: dm install zabbix (vyžaduje enabled: true)
+zabbix:
+  enabled: false          # true = zapnout Zabbix stack (docker)
+  port: 8082              # port Zabbix web rozhraní
+  db_password: "ZmenMeZabbixDb!"
 
 # --- PostgreSQL (management engine) ---------------------------------------
 postgres:

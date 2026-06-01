@@ -157,16 +157,16 @@ class GrafanaCfg(BaseModel):
     admin_password: str = Field(..., min_length=8)
 
 
-class ZabbixCfg(BaseModel):
-    port: int = 8082
-    db_password: str = Field(..., min_length=8)
-
-
 class MonitoringCfg(BaseModel):
     enabled: bool = True
     prometheus: PrometheusCfg
     grafana: GrafanaCfg
-    zabbix: ZabbixCfg
+
+
+class ZabbixCfg(BaseModel):
+    enabled: bool = False
+    port: int = 8082
+    db_password: str = Field(default="ZmenMeZabbix!", min_length=8)
 
 
 class PostgresCfg(BaseModel):
@@ -236,6 +236,7 @@ class Config(BaseModel):
     dhcp: DhcpCfg
     pihole: PiholeCfg
     monitoring: MonitoringCfg
+    zabbix: ZabbixCfg = Field(default_factory=ZabbixCfg)
     postgres: PostgresCfg
     manager: ManagerCfg
     firewall: FirewallCfg
@@ -315,8 +316,8 @@ def _demo_config() -> Config:
             "enabled": True,
             "prometheus": {"port": 9090, "retention_days": 30},
             "grafana": {"port": 3000, "admin_password": "Demo.Grafana123!"},
-            "zabbix": {"port": 8082, "db_password": "Demo.Zabbix123!"},
         },
+        "zabbix": {"enabled": False},
         "postgres": {
             "enabled": True,
             "db_password": "Demo.Postgres123!",

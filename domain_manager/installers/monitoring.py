@@ -1,8 +1,8 @@
-"""Monitoring stack: Prometheus + Grafana + Zabbix (vše Docker, běží na DC2).
+"""Monitoring stack: Prometheus + Grafana (Docker, běží na DC2).
 
 Prometheus scrapuje:
   - node_exporter na DC1, DC2 (HW metriky)
-  - samba_exporter (volitelně - není v repo, dohrávat z Gitu)
+  - samba_exporter (volitelně)
   - pihole-exporter (z gh.com/eko/pihole-exporter)
 
 Grafana předkonfigurované datasource Prometheus + dashboardy pro:
@@ -10,8 +10,7 @@ Grafana předkonfigurované datasource Prometheus + dashboardy pro:
   - Samba AD DC (vlastní)
   - Pi-hole (ID 10176)
 
-Zabbix - klasické monitoring řešení, použije se jako fallback / pro
-agent-based monitoring Windows klientů (Zabbix agent 2 umí Windows nativně).
+Zabbix je samostatná komponenta — viz installers/zabbix.py.
 """
 from __future__ import annotations
 
@@ -25,7 +24,7 @@ MONITORING_DIR = Path("/opt/monitoring")
 
 
 class MonitoringInstaller(BaseInstaller):
-    name = "Monitoring (Prometheus + Grafana + Zabbix)"
+    name = "Monitoring (Prometheus + Grafana)"
 
     def install(self) -> None:
         MONITORING_DIR.mkdir(parents=True, exist_ok=True)
@@ -73,7 +72,6 @@ class MonitoringInstaller(BaseInstaller):
     def _write_compose(self) -> None:
         p = self.cfg.monitoring.prometheus
         g = self.cfg.monitoring.grafana
-        z = self.cfg.monitoring.zabbix
 
         compose = dedent(f"""\
             services:
@@ -100,48 +98,8 @@ class MonitoringInstaller(BaseInstaller):
                 volumes:
                   - grafana-data:/var/lib/grafana
 
-              # Zabbix - PostgreSQL backend + zabbix-server + zabbix-web
-              zabbix-db:
-                image: postgres:16
-                restart: unless-stopped
-                environment:
-                  POSTGRES_USER: zabbix
-                  POSTGRES_PASSWORD: "{z.db_password}"
-                  POSTGRES_DB: zabbix
-                volumes:
-                  - zabbix-db:/var/lib/postgresql/data
-
-              zabbix-server:
-                image: zabbix/zabbix-server-pgsql:latest
-                restart: unless-stopped
-                environment:
-                  DB_SERVER_HOST: zabbix-db
-                  POSTGRES_USER: zabbix
-                  POSTGRES_PASSWORD: "{z.db_password}"
-                  POSTGRES_DB: zabbix
-                depends_on:
-                  - zabbix-db
-                ports:
-                  - "10051:10051"
-
-              zabbix-web:
-                image: zabbix/zabbix-web-nginx-pgsql:latest
-                restart: unless-stopped
-                environment:
-                  DB_SERVER_HOST: zabbix-db
-                  POSTGRES_USER: zabbix
-                  POSTGRES_PASSWORD: "{z.db_password}"
-                  POSTGRES_DB: zabbix
-                  ZBX_SERVER_HOST: zabbix-server
-                  PHP_TZ: Europe/Prague
-                ports:
-                  - "{z.port}:8080"
-                depends_on:
-                  - zabbix-server
-
             volumes:
               prom-data:
               grafana-data:
-              zabbix-db:
             """)
         self.runner.write_file(MONITORING_DIR / "docker-compose.yml", compose, mode=0o600)

@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from ...db.models import Computer, ComputerGroupMembership, Group, get_session
+from ...db.models import Computer, ComputerGroupMembership, Group, User, UserGroupMembership, get_session
 from ...ansible.runner import AnsibleRunner
 from .._audit import log_action
 
@@ -121,6 +121,148 @@ async def create_group(
         f'<div id="group-msg" style="color:var(--success);padding:8px 0">{msg}'
         f'</div><script>setTimeout(()=>location.reload(),800)</script>'
     )
+
+
+@router.get("/{group_id}", response_class=HTMLResponse)
+async def group_detail(group_id: int, request: Request, user: str = Depends(_require_user)):
+    """Detail skupiny — seznam členů, přidání/odebrání, editace."""
+    with get_session() as session:
+        group = session.get(Group, group_id)
+        if not group:
+            raise HTTPException(404, "Skupina nenalezena")
+        g_data = {
+            "id": group.id,
+            "name": group.name,
+            "kind": group.kind,
+            "description": group.description or "",
+        }
+
+        if group.kind == "computer":
+            memberships = (
+                session.query(ComputerGroupMembership)
+                .filter(ComputerGroupMembership.group_id == group_id)
+                .all()
+            )
+            member_ids = {m.computer_id for m in memberships}
+            members = (
+                session.query(Computer).filter(Computer.id.in_(member_ids)).order_by(Computer.hostname).all()
+                if member_ids else []
+            )
+            members_data = [{"id": c.id, "label": c.hostname or str(c.id)} for c in members]
+            # Dostupné počítače k přidání
+            all_computers = session.query(Computer).order_by(Computer.hostname).all()
+            available = [
+                {"id": c.id, "label": c.hostname or str(c.id)}
+                for c in all_computers if c.id not in member_ids
+            ]
+        else:
+            memberships = (
+                session.query(UserGroupMembership)
+                .filter(UserGroupMembership.group_id == group_id)
+                .all()
+            )
+            member_ids = {m.user_id for m in memberships}
+            members = (
+                session.query(User).filter(User.id.in_(member_ids)).order_by(User.last_name, User.first_name).all()
+                if member_ids else []
+            )
+            members_data = [{"id": u.id, "label": f"{u.last_name} {u.first_name} ({u.username})"} for u in members]
+            all_users = session.query(User).order_by(User.last_name, User.first_name).all()
+            available = [
+                {"id": u.id, "label": f"{u.last_name} {u.first_name} ({u.username})"}
+                for u in all_users if u.id not in member_ids
+            ]
+
+    return templates.TemplateResponse("group_detail.html", {
+        "request": request,
+        "user": user,
+        "group": g_data,
+        "members": members_data,
+        "available": available,
+    })
+
+
+@router.post("/{group_id}", response_class=HTMLResponse)
+async def group_update(
+    group_id: int,
+    request: Request,
+    user: str = Depends(_require_user),
+    name: str = Form(...),
+    description: str = Form(""),
+):
+    """Přejmenování skupiny / změna popisu."""
+    name = name.strip()
+    if not name:
+        raise HTTPException(400, "Název nesmí být prázdný")
+    with get_session() as session:
+        group = session.get(Group, group_id)
+        if not group:
+            raise HTTPException(404)
+        old_name = group.name
+        group.name = name
+        group.description = description.strip() or None
+        session.commit()
+    log_action(user, "update_group", "group", group_id, {"old_name": old_name, "name": name})
+    return RedirectResponse(f"/groups/{group_id}", status_code=303)
+
+
+@router.post("/{group_id}/members/add", response_class=HTMLResponse)
+async def group_member_add(
+    group_id: int,
+    request: Request,
+    user: str = Depends(_require_user),
+    member_id: int = Form(...),
+):
+    """Přidá počítač nebo uživatele do skupiny."""
+    with get_session() as session:
+        group = session.get(Group, group_id)
+        if not group:
+            raise HTTPException(404)
+        if group.kind == "computer":
+            exists = (
+                session.query(ComputerGroupMembership)
+                .filter_by(group_id=group_id, computer_id=member_id)
+                .first()
+            )
+            if not exists:
+                session.add(ComputerGroupMembership(group_id=group_id, computer_id=member_id))
+                session.commit()
+        else:
+            exists = (
+                session.query(UserGroupMembership)
+                .filter_by(group_id=group_id, user_id=member_id)
+                .first()
+            )
+            if not exists:
+                session.add(UserGroupMembership(group_id=group_id, user_id=member_id))
+                session.commit()
+    log_action(user, "group_member_add", "group", group_id, {"member_id": member_id})
+    return RedirectResponse(f"/groups/{group_id}", status_code=303)
+
+
+@router.post("/{group_id}/members/remove/{member_id}", response_class=HTMLResponse)
+async def group_member_remove(
+    group_id: int,
+    member_id: int,
+    request: Request,
+    user: str = Depends(_require_user),
+):
+    """Odebere počítač nebo uživatele ze skupiny."""
+    with get_session() as session:
+        group = session.get(Group, group_id)
+        if not group:
+            raise HTTPException(404)
+        if group.kind == "computer":
+            session.query(ComputerGroupMembership).filter_by(
+                group_id=group_id, computer_id=member_id
+            ).delete()
+        else:
+            session.query(UserGroupMembership).filter_by(
+                group_id=group_id, user_id=member_id
+            ).delete()
+        session.commit()
+    log_action(user, "group_member_remove", "group", group_id, {"member_id": member_id})
+    return RedirectResponse(f"/groups/{group_id}", status_code=303)
 
 
 @router.post("/{group_id}/run-playbook", response_class=HTMLResponse)
