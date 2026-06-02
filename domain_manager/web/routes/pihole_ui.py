@@ -126,8 +126,8 @@ def _demo_data() -> dict:
 async def pihole_overview(request: Request, user: str = Depends(_require_user)):
     if _DEMO_MODE:
         data = _demo_data()
-        return templates.TemplateResponse("pihole.html", {
-            "request": request, "user": user, **data,
+        return templates.TemplateResponse(request, "pihole.html", {
+            "user": user, **data,
             "curated_lists": CURATED_LISTS, "error": None, "demo": True,
         })
 
@@ -194,8 +194,8 @@ async def pihole_overview(request: Request, user: str = Depends(_require_user)):
     except Exception as e:
         error = str(e)
 
-    return templates.TemplateResponse("pihole.html", {
-        "request": request, "user": user,
+    return templates.TemplateResponse(request, "pihole.html", {
+        "user": user,
         "groups": groups, "clients": clients, "stats": stats,
         "adlists": adlists, "curated_lists": CURATED_LISTS,
         "error": error, "demo": False,

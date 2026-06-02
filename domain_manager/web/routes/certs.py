@@ -31,8 +31,8 @@ def certs_list(request: Request, user: str = Depends(_require_user)):
         certs = session.query(Certificate).order_by(Certificate.hostname).all()
         data = [_cert_dict(c, now) for c in certs]
 
-    return templates.TemplateResponse("certs.html", {
-        "request": request, "user": user,
+    return templates.TemplateResponse(request, "certs.html", {
+        "user": user,
         "certs": data,
         "now": now.strftime("%d.%m.%Y %H:%M"),
     })

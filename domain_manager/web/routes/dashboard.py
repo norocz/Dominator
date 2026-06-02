@@ -55,8 +55,7 @@ def dashboard(request: Request, user: str = Depends(_require_user)):
             for c in recent_online
         ]
 
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "dashboard.html", {
         "user": user,
         "computer_count": computer_count,
         "online_count": online_count,

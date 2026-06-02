@@ -119,7 +119,7 @@ async def root(request: Request):
     if DEMO_MODE and not request.session.get("user"):
         request.session["user"] = "demo"
     if not request.session.get("user"):
-        return templates.TemplateResponse("login.html", {"request": request})
+        return templates.TemplateResponse(request, "login.html")
     return RedirectResponse("/dashboard", status_code=303)
 
 

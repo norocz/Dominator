@@ -173,8 +173,8 @@ def health_dashboard(request: Request, user: str = Depends(_require_user)):
 
     if _DEMO_MODE:
         checks = _demo_checks(cfg)
-        return templates.TemplateResponse("health.html", {
-            "request": request, "user": user, "checks": checks,
+        return templates.TemplateResponse(request, "health.html", {
+            "user": user, "checks": checks,
             "checked_at": datetime.now(timezone.utc).strftime("%d.%m.%Y %H:%M:%S"),
         })
 
@@ -203,8 +203,8 @@ def health_dashboard(request: Request, user: str = Depends(_require_user)):
     for c in _cert_checks():
         checks.append({"category": "Certifikáty", **c})
 
-    return templates.TemplateResponse("health.html", {
-        "request": request, "user": user, "checks": checks,
+    return templates.TemplateResponse(request, "health.html", {
+        "user": user, "checks": checks,
         "checked_at": datetime.now(timezone.utc).strftime("%d.%m.%Y %H:%M:%S"),
     })
 

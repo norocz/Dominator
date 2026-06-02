@@ -871,8 +871,7 @@ async def ansible_page(request: Request, user: str = Depends(_require_user)):
     with get_session() as session:
         actions = session.query(AnsibleAction).order_by(AnsibleAction.category, AnsibleAction.name).all()
         actions_data = [a.as_dict() for a in actions]
-    return templates.TemplateResponse("ansible.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "ansible.html", {
         "user": user,
         "playbooks": runner.list_playbooks(),
         "groups": runner.list_groups(),
@@ -901,8 +900,7 @@ async def ansible_job(
     job = runner.get_job(job_id)
     if not job:
         raise HTTPException(404, "Job nenalezen")
-    return templates.TemplateResponse("ansible_job.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "ansible_job.html", {
         "user": user,
         "job": job.as_dict(),
         "output": job.output_lines,
@@ -946,8 +944,7 @@ async def action_panel(
         "user_group": "skupinu uživatelů",
     }.get(target, target)
 
-    return templates.TemplateResponse("ansible_action_panel.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "ansible_action_panel.html", {
         "actions": actions_data,
         "target": target,
         "group_id": group_id,
@@ -1056,8 +1053,8 @@ async def action_run(
 
 @router.get("/actions/new", response_class=HTMLResponse)
 def action_new(request: Request, user: str = Depends(_require_user)):
-    return templates.TemplateResponse("ansible_editor.html", {
-        "request": request, "user": user,
+    return templates.TemplateResponse(request, "ansible_editor.html", {
+        "user": user,
         "filename": "", "content": _STARTER_TEMPLATE,
         "is_new": True, "saved": False,
         "is_action": True,
@@ -1080,8 +1077,8 @@ def action_edit(
         if not action:
             raise HTTPException(404, "Akce nenalezena")
         ad = action.as_dict()
-    return templates.TemplateResponse("ansible_editor.html", {
-        "request": request, "user": user,
+    return templates.TemplateResponse(request, "ansible_editor.html", {
+        "user": user,
         "filename": "", "content": ad["playbook"],
         "is_new": False, "saved": bool(saved),
         "is_action": True,
@@ -1180,8 +1177,8 @@ async def action_seed(request: Request, user: str = Depends(_require_user)):
 
 @router.get("/playbooks/new", response_class=HTMLResponse)
 def playbook_new(request: Request, user: str = Depends(_require_user)):
-    return templates.TemplateResponse("ansible_editor.html", {
-        "request": request, "user": user,
+    return templates.TemplateResponse(request, "ansible_editor.html", {
+        "user": user,
         "filename": "", "content": _STARTER_TEMPLATE,
         "is_new": True, "saved": False, "is_action": False, "action": {},
     })
@@ -1200,8 +1197,8 @@ def playbook_edit(
     path = runner.playbooks_path / safe
     if not path.exists():
         raise HTTPException(404, f"Playbook {safe!r} nenalezen")
-    return templates.TemplateResponse("ansible_editor.html", {
-        "request": request, "user": user,
+    return templates.TemplateResponse(request, "ansible_editor.html", {
+        "user": user,
         "filename": safe, "content": path.read_text(encoding="utf-8"),
         "is_new": False, "saved": bool(saved), "is_action": False, "action": {},
     })
@@ -1249,8 +1246,7 @@ async def ansible_job_output(
     job = runner.get_job(job_id)
     if not job:
         return HTMLResponse("<div>Job nenalezen</div>")
-    return templates.TemplateResponse("ansible_output_fragment.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "ansible_output_fragment.html", {
         "job": job.as_dict(),
         "output": job.output_lines,
     })

@@ -63,8 +63,7 @@ async def list_groups(request: Request, user: str = Depends(_require_user)):
             }
             for g in groups
         ]
-    return templates.TemplateResponse("groups.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "groups.html", {
         "user": user,
         "groups": groups_data,
         "playbooks": playbooks,
@@ -173,8 +172,7 @@ async def group_detail(group_id: int, request: Request, user: str = Depends(_req
                 for u in all_users if u.id not in member_ids
             ]
 
-    return templates.TemplateResponse("group_detail.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "group_detail.html", {
         "user": user,
         "group": g_data,
         "members": members_data,
@@ -494,8 +492,7 @@ async def group_internet_block(
         session.commit()
         group_name = group.name
 
-    return templates.TemplateResponse("group_internet_result.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "group_internet_result.html", {
         "group_id": group_id,
         "group_name": group_name,
         "action": "block",
@@ -550,8 +547,7 @@ async def group_internet_unblock(
         session.commit()
         group_name = group.name
 
-    return templates.TemplateResponse("group_internet_result.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "group_internet_result.html", {
         "group_id": group_id,
         "group_name": group_name,
         "action": "unblock",

@@ -20,4 +20,4 @@ def _require_user(request: Request) -> str:
 
 @router.get("", response_class=HTMLResponse)
 async def help_page(request: Request, user: str = Depends(_require_user)):
-    return templates.TemplateResponse("help.html", {"request": request, "user": user})
+    return templates.TemplateResponse(request, "help.html", {"user": user})

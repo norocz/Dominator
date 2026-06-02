@@ -67,8 +67,8 @@ def backup_page(request: Request, user: str = Depends(_require_user)):
     cfg = request.app.state.config
     backup_dir = str(cfg.backup.backup_dir) if hasattr(cfg, "backup") else "/var/lib/domain-manager/backups"
 
-    return templates.TemplateResponse("backup.html", {
-        "request": request, "user": user,
+    return templates.TemplateResponse(request, "backup.html", {
+        "user": user,
         "records": data,
         "backup_types": BACKUP_TYPES,
         "backup_dir": backup_dir,

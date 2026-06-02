@@ -64,8 +64,7 @@ def _require_user(request: Request) -> str:
 @router.get("", response_class=HTMLResponse)
 def list_users(request: Request, user: str = Depends(_require_user)):
     columns = _columns_from_params(request)
-    return templates.TemplateResponse("users.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "users.html", {
         "user": user,
         "all_columns": ALL_COLUMNS,
         "active_columns": columns,
@@ -87,8 +86,7 @@ def users_table_fragment(request: Request, user: str = Depends(_require_user)):
         )
         rows_data = [_row_dict(r) for r in result.rows]
 
-    return templates.TemplateResponse("users_table.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "users_table.html", {
         "rows": rows_data,
         "columns": columns,
         "column_labels": ALL_COLUMNS,
@@ -105,8 +103,7 @@ def user_new_form(request: Request, user: str = Depends(_require_user)):
     with get_session() as session:
         groups = session.query(Group).filter(Group.kind == "user").order_by(Group.name).all()
         groups_data = [{"id": g.id, "name": g.name} for g in groups]
-    return templates.TemplateResponse("user_detail.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "user_detail.html", {
         "user": user,
         "u": None,
         "labels": ALL_COLUMNS,
@@ -178,8 +175,7 @@ def user_detail(user_id: int, request: Request, user: str = Depends(_require_use
         all_groups = session.query(Group).filter(Group.kind == "user").order_by(Group.name).all()
         groups_data = [{"id": g.id, "name": g.name, "member": g.id in user_group_ids} for g in all_groups]
 
-    return templates.TemplateResponse("user_detail.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "user_detail.html", {
         "user": user,
         "u": data,
         "labels": ALL_COLUMNS,

@@ -41,8 +41,8 @@ def snmp_list(request: Request, user: str = Depends(_require_user)):
         devices = session.query(NetworkDevice).order_by(NetworkDevice.device_type, NetworkDevice.hostname).all()
         data = [_device_dict(d) for d in devices]
 
-    return templates.TemplateResponse("snmp.html", {
-        "request": request, "user": user,
+    return templates.TemplateResponse(request, "snmp.html", {
+        "user": user,
         "devices": data,
         "device_types": DEVICE_TYPES,
     })
@@ -50,8 +50,8 @@ def snmp_list(request: Request, user: str = Depends(_require_user)):
 
 @router.get("/new", response_class=HTMLResponse)
 def snmp_new(request: Request, user: str = Depends(_require_user)):
-    return templates.TemplateResponse("snmp_detail.html", {
-        "request": request, "user": user,
+    return templates.TemplateResponse(request, "snmp_detail.html", {
+        "user": user,
         "d": None,
         "device_types": DEVICE_TYPES,
         "port_stats": {},
@@ -96,8 +96,8 @@ def snmp_detail(device_id: int, request: Request, user: str = Depends(_require_u
             raise HTTPException(404)
         data = _device_dict(d, full=True)
 
-    return templates.TemplateResponse("snmp_detail.html", {
-        "request": request, "user": user,
+    return templates.TemplateResponse(request, "snmp_detail.html", {
+        "user": user,
         "d": data,
         "device_types": DEVICE_TYPES,
         "port_stats": data.get("port_stats") or {},

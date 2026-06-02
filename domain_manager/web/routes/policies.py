@@ -70,8 +70,8 @@ def list_policies(request: Request, user: str = Depends(_require_user)):
             for p in policies
         ]
 
-    return templates.TemplateResponse("policies.html", {
-        "request": request, "user": user,
+    return templates.TemplateResponse(request, "policies.html", {
+        "user": user,
         "policies": data,
         "kinds": POLICY_KINDS,
     })
@@ -81,8 +81,8 @@ def list_policies(request: Request, user: str = Depends(_require_user)):
 def policy_new(request: Request, user: str = Depends(_require_user)):
     kind = request.query_params.get("kind", "settings")
     default_spec = _DEFAULT_SPECS.get(kind, {})
-    return templates.TemplateResponse("policy_detail.html", {
-        "request": request, "user": user,
+    return templates.TemplateResponse(request, "policy_detail.html", {
+        "user": user,
         "p": None,
         "kinds": POLICY_KINDS,
         "default_kind": kind,
@@ -149,8 +149,8 @@ def policy_detail(policy_id: int, request: Request, user: str = Depends(_require
             "created_at": p.created_at.strftime("%d.%m.%Y %H:%M") if p.created_at else "",
         }
 
-    return templates.TemplateResponse("policy_detail.html", {
-        "request": request, "user": user,
+    return templates.TemplateResponse(request, "policy_detail.html", {
+        "user": user,
         "p": data,
         "kinds": POLICY_KINDS,
         "default_kind": p.kind,

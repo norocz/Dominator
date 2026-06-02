@@ -61,8 +61,7 @@ def audit_log(
 
     total_pages = max(1, (total + per_page - 1) // per_page)
 
-    return templates.TemplateResponse("audit.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "audit.html", {
         "user": user,
         "entries": data,
         "total": total,

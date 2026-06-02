@@ -68,8 +68,7 @@ def dhcp_page(request: Request, user: str = Depends(_require_user)):
             except KeaError as e:
                 error = str(e)
 
-    return templates.TemplateResponse("dhcp.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "dhcp.html", {
         "user": user,
         "reservations": reservations,
         "leases": leases,

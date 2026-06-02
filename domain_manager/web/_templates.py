@@ -1,15 +1,20 @@
 """Sdílená instance Jinja2Templates pro všechny route moduly.
 
-Centralizováno zde kvůli cache_size=0 — workaround pro Jinja2 3.2.x bug
-na Python 3.14, kde _load_template() vkládá surový globals dict do cache_key
-tuple a Python 3.14 odmítá tuple s dictem jako klíč (TypeError: unhashable type).
-S cache_size=0 se LRU cache zcela přeskočí.
+cache_size=0: Zabbix-bug workaround — v Jinja2 3.2+ na Pythonu 3.14+
+_load_template() vkládá globals dict do cache_key tuple (dict není hashable).
+S cache_size=0 se LRU cache přeskočí úplně. Předáváme předkonfigurované
+jinja2.Environment aby se vyhnuli deprecated env_options v Starlette 0.46+.
 """
+import jinja2
+from fastapi.templating import Jinja2Templates
 from pathlib import Path
 
-from fastapi.templating import Jinja2Templates
+_templates_dir = Path(__file__).parent / "templates"
 
-templates = Jinja2Templates(
-    directory=str(Path(__file__).parent / "templates"),
+_env = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(str(_templates_dir)),
+    autoescape=True,
     cache_size=0,
 )
+
+templates = Jinja2Templates(env=_env)

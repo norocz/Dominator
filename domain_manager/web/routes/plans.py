@@ -136,8 +136,8 @@ def list_plans(request: Request, user: str = Depends(_require_user)):
         tree = _build_tree(plans)
         plan_count = len(plans)
 
-    return templates.TemplateResponse("plans.html", {
-        "request": request, "user": user,
+    return templates.TemplateResponse(request, "plans.html", {
+        "user": user,
         "tree": tree,
         "plan_count": plan_count,
     })
@@ -148,8 +148,8 @@ def plan_new(request: Request, user: str = Depends(_require_user)):
     with get_session() as session:
         parents = session.query(FloorPlan).order_by(FloorPlan.name).all()
         parents_data = [_plan_dict(p) for p in parents]
-    return templates.TemplateResponse("plan_form.html", {
-        "request": request, "user": user,
+    return templates.TemplateResponse(request, "plan_form.html", {
+        "user": user,
         "p": None,
         "parents": parents_data,
     })
@@ -164,8 +164,8 @@ def plan_edit(plan_id: int, request: Request, user: str = Depends(_require_user)
         parents = session.query(FloorPlan).order_by(FloorPlan.name).all()
         parents_data = [_plan_dict(p2) for p2 in parents]
         plan_data = _plan_dict(p)
-    return templates.TemplateResponse("plan_form.html", {
-        "request": request, "user": user,
+    return templates.TemplateResponse(request, "plan_form.html", {
+        "user": user,
         "p": plan_data,
         "parents": parents_data,
     })
@@ -269,8 +269,8 @@ def plan_detail(plan_id: int, request: Request, user: str = Depends(_require_use
         plan_data = _plan_dict(p)
         parent = session.get(FloorPlan, p.parent_id) if p.parent_id else None
 
-    return templates.TemplateResponse("plan_detail.html", {
-        "request": request, "user": user,
+    return templates.TemplateResponse(request, "plan_detail.html", {
+        "user": user,
         "p": plan_data,
         "placed": placed,
         "unplaced": unplaced_data,

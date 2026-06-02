@@ -85,8 +85,7 @@ ALL_COLUMNS = {
 async def computers_page(request: Request, user: str = Depends(_require_user)):
     """Celá stránka — layout, filtrový panel, slot pro tabulku."""
     columns = _columns_from_params(request)
-    return templates.TemplateResponse("computers.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "computers.html", {
         "user": user,
         "all_columns": ALL_COLUMNS,
         "active_columns": columns,
@@ -109,8 +108,7 @@ async def computers_table(request: Request, user: str = Depends(_require_user)):
         )
         rows_data = [_row_dict(r) for r in result.rows]
 
-    return templates.TemplateResponse("computers_table.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "computers_table.html", {
         "rows": rows_data,
         "columns": columns,
         "column_labels": ALL_COLUMNS,
@@ -129,8 +127,7 @@ async def computer_detail(computer_id: int, request: Request, user: str = Depend
         if not comp:
             raise HTTPException(404, "Počítač nenalezen")
         data = _row_dict(comp, full=True)
-    return templates.TemplateResponse("computer_detail.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "computer_detail.html", {
         "user": user,
         "c": data,
         "labels": ALL_COLUMNS,
@@ -194,8 +191,7 @@ async def internet_block(
         session.commit()
         data = _row_dict(comp)
 
-    return templates.TemplateResponse("computer_internet_fragment.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "computer_internet_fragment.html", {
         "c": data,
         "job_id": job_id,
         "message": f"Internet zablokován {'(demo)' if demo else ''}",
@@ -234,8 +230,7 @@ async def internet_unblock(
         session.commit()
         data = _row_dict(comp)
 
-    return templates.TemplateResponse("computer_internet_fragment.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "computer_internet_fragment.html", {
         "c": data,
         "job_id": job_id,
         "message": f"Internet odblokován {'(demo)' if demo else ''}",
