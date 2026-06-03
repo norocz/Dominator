@@ -89,10 +89,12 @@ templates.env.globals["demo_mode"] = DEMO_MODE
 from .routes import (  # noqa: E402
     auth, dashboard, computers, users, groups, plans, policies,
     ansible, dhcp, audit, pihole_ui, health, backup, snmp_devices, certs, help,
+    samba,
 )
 
 app.include_router(auth.router)
 app.include_router(dashboard.router)
+app.include_router(samba.router)
 app.include_router(computers.router)
 app.include_router(users.router)
 app.include_router(groups.router)
