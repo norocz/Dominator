@@ -15,6 +15,15 @@
 {% block content %}
 <h1>Přehled domény</h1>
 
+{% if db_error %}
+<div class="card" style="border-left: 3px solid var(--danger); margin-bottom: 16px; padding: 12px 16px;">
+    <strong style="color:var(--danger);">⚠ Databáze nedostupná</strong>
+    <span style="color:var(--text-dim); font-size:12px; margin-left:8px;">{{ db_error }}</span>
+    <br><span style="color:var(--text-dim); font-size:12px;">Statistiky zobrazeny jako nuly. Zkontrolujte PostgreSQL:
+        <code>systemctl status postgresql</code></span>
+</div>
+{% endif %}
+
 <!-- Statistiky -->
 <div class="stat-cards">
     <div class="stat-card">

@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from ...db.models import Computer, Group, User, get_session
 
@@ -26,37 +26,42 @@ def _require_user(request: Request) -> str:
 def dashboard(request: Request, user: str = Depends(_require_user)):
     cfg = request.app.state.config
 
-    # Statistiky z DB
-    with get_session() as session:
-        computer_count = session.query(Computer).count()
-        online_count = session.query(Computer).filter(Computer.is_online == True).count()  # noqa: E712
-        user_count = session.query(User).count()
-        group_count = session.query(Group).count()
-        blocked_count = session.query(Computer).filter(Computer.internet_blocked == True).count()  # noqa: E712
+    db_error: str | None = None
+    computer_count = online_count = user_count = group_count = blocked_count = 0
+    recent_data: list[dict] = []
 
-        # Poslední 5 počítačů online
-        recent_online = (
-            session.query(Computer)
-            .filter(Computer.is_online == True)  # noqa: E712
-            .order_by(Computer.last_seen.desc())
-            .limit(5)
-            .all()
-        )
-        recent_data = [
-            {
-                "id": c.id,
-                "hostname": c.hostname,
-                "ip": c.ip_reserved or "—",
-                "cpu_pct": c.last_cpu_pct,
-                "ram_pct": c.last_ram_used_pct,
-                "disk_pct": c.last_disk_used_pct,
-                "last_seen": c.last_seen.strftime("%d.%m. %H:%M") if c.last_seen else "—",
-            }
-            for c in recent_online
-        ]
+    try:
+        with get_session() as session:
+            computer_count = session.query(Computer).count()
+            online_count = session.query(Computer).filter(Computer.is_online == True).count()  # noqa: E712
+            user_count = session.query(User).count()
+            group_count = session.query(Group).count()
+            blocked_count = session.query(Computer).filter(Computer.internet_blocked == True).count()  # noqa: E712
+            recent_online = (
+                session.query(Computer)
+                .filter(Computer.is_online == True)  # noqa: E712
+                .order_by(Computer.last_seen.desc())
+                .limit(5)
+                .all()
+            )
+            recent_data = [
+                {
+                    "id": c.id,
+                    "hostname": c.hostname,
+                    "ip": c.ip_reserved or "—",
+                    "cpu_pct": c.last_cpu_pct,
+                    "ram_pct": c.last_ram_used_pct,
+                    "disk_pct": c.last_disk_used_pct,
+                    "last_seen": c.last_seen.strftime("%d.%m. %H:%M") if c.last_seen else "—",
+                }
+                for c in recent_online
+            ]
+    except Exception as exc:
+        db_error = str(exc).split("\n")[0][:120]
 
     return templates.TemplateResponse(request, "dashboard.html", {
         "user": user,
+        "db_error": db_error,
         "computer_count": computer_count,
         "online_count": online_count,
         "user_count": user_count,

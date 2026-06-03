@@ -15,7 +15,7 @@ import os
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from ._templates import templates as _shared_templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -112,6 +112,44 @@ app.include_router(help.router)
 if not DEMO_MODE and cfg.notifications.enabled:
     from ..notifications.sender import start_background_checker
     start_background_checker(cfg)
+
+
+# --- Globální exception handlery -------------------------------------------
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception) -> HTMLResponse:
+    """Zachytí neošetřené výjimky (hlavně DB/psycopg chyby) a vrátí čitelnou stránku
+    místo prázdné 500 Internal Server Error."""
+    import logging
+    log = logging.getLogger("dm.app")
+    log.error("Neošetřená výjimka v %s: %s", request.url.path, exc, exc_info=exc)
+
+    # Pokud uživatel není přihlášen, přesměruj na login bez ohledu na chybu
+    if not request.session.get("user"):
+        return RedirectResponse("/", status_code=303)
+
+    # Jinak zobraz chybovou stránku s detailem
+    err_short = str(exc).split("\n")[0][:200]
+    err_type = type(exc).__name__
+    html = f"""
+    <html><head><title>Chyba — Domain Manager</title>
+    <style>body{{font-family:monospace;background:#1a1a2e;color:#e2e8f0;padding:40px}}
+    .box{{max-width:700px;margin:auto;background:#16213e;padding:32px;border-radius:8px;
+    border-left:4px solid #e53e3e}}
+    h2{{color:#fc8181;margin:0 0 16px}}
+    code{{background:#0f3460;padding:8px 16px;border-radius:4px;display:block;
+    white-space:pre-wrap;word-break:break-all;font-size:13px;margin:12px 0}}
+    a{{color:#63b3ed}}</style></head>
+    <body><div class="box">
+    <h2>⚠ Chyba serveru ({err_type})</h2>
+    <code>{err_short}</code>
+    <p>Zkontrolujte stav služeb:<br>
+    <code>systemctl status postgresql
+systemctl status samba-ad-dc</code></p>
+    <a href="/dashboard">← Zpět na dashboard</a> &nbsp;
+    <a href="/logout">Odhlásit</a>
+    </div></body></html>"""
+    return HTMLResponse(content=html, status_code=500)
 
 
 @app.get("/", response_class=HTMLResponse)
